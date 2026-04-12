@@ -66,10 +66,10 @@ export function FilterBar({
   const isReduced = visibleTaskCount < totalTaskCount;
 
   return (
-    <div className="flex flex-wrap items-center gap-3 border-b border-border/40 pb-3">
-      <div className="relative min-w-[min(100%,11rem)] max-w-sm flex-1">
+    <div className="flex flex-col flex-wrap gap-3 border-b border-border pb-3 max-md:gap-4 md:flex-row md:items-center">
+      <div className="relative w-full min-w-0 md:min-w-[min(100%,11rem)] md:max-w-sm md:flex-1">
         <SearchIcon
-          className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+          className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground md:left-2.5"
           aria-hidden
         />
         <Input
@@ -77,13 +77,13 @@ export function FilterBar({
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder="Search titles…"
-          className="h-8 pl-8"
+          className="h-8 min-h-11 pl-9 md:h-8 md:min-h-8 md:pl-8"
           aria-label="Filter tasks by title"
         />
       </div>
 
       <div
-        className="inline-flex shrink-0 rounded-lg border border-border/60 bg-muted/30 p-0.5"
+        className="inline-flex w-full min-w-0 shrink-0 rounded-lg border border-border/60 bg-muted/30 p-0.5 max-md:justify-stretch md:w-auto"
         role="group"
         aria-label="Filter by priority"
       >
@@ -95,11 +95,11 @@ export function FilterBar({
               type="button"
               onClick={() => onPriorityChange(value)}
               className={cn(
-                "rounded-md px-2 py-1 text-xs font-medium transition-colors",
+                "min-h-11 flex-1 rounded-md px-2 py-2 text-xs font-medium transition-colors duration-150 md:min-h-0 md:flex-none md:px-2 md:py-1",
                 "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none",
                 on
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground",
+                  ? "bg-card text-foreground shadow-sm ring-1 ring-border/60"
+                  : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
               )}
               aria-pressed={on}
             >
@@ -110,7 +110,7 @@ export function FilterBar({
       </div>
 
       {teamMembers.length > 0 ? (
-        <div className="shrink-0">
+        <div className="w-full shrink-0 md:w-auto">
           <label htmlFor="board-assignee-filter" className="sr-only">
             Filter by assignee
           </label>
@@ -124,7 +124,7 @@ export function FilterBar({
           >
             <SelectTrigger
               id="board-assignee-filter"
-              className="h-8 w-[min(100%,9.5rem)] text-xs"
+              className="h-8 min-h-11 w-full text-xs md:h-8 md:min-h-8 md:w-[min(100%,9.5rem)]"
             >
               <SelectValue placeholder="Assignee" />
             </SelectTrigger>
@@ -142,10 +142,7 @@ export function FilterBar({
 
       {labels.length > 0 ? (
         <>
-          <div
-            className="hidden h-6 w-px shrink-0 bg-border/60 sm:block"
-            aria-hidden
-          />
+          <div className="hidden h-6 w-px shrink-0 bg-border sm:block" aria-hidden />
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
             <span className="sr-only">Filter by label</span>
             {labels.map((label) => {
@@ -156,11 +153,11 @@ export function FilterBar({
                   type="button"
                   onClick={() => onToggleLabel(label.id)}
                   className={cn(
-                    "rounded-full px-2.5 py-1 text-xs font-medium transition-[box-shadow,opacity,transform]",
+                    "min-h-11 rounded-full px-2.5 py-2 text-xs font-medium transition-all duration-150 md:min-h-0 md:py-1",
                     "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none",
                     isActive
                       ? cn(labelColorClass(label.color), "shadow-sm")
-                      : "border border-dashed border-border/80 bg-transparent text-muted-foreground hover:border-border hover:bg-muted/30 hover:text-foreground",
+                      : "border border-dashed border-border bg-transparent text-muted-foreground hover:border-border hover:bg-muted/40 hover:text-foreground",
                   )}
                   aria-pressed={isActive}
                 >
@@ -172,7 +169,7 @@ export function FilterBar({
         </>
       ) : null}
 
-      <div className="flex shrink-0 flex-wrap items-center gap-2 sm:ml-auto">
+      <div className="flex w-full shrink-0 flex-wrap items-center gap-2 max-md:justify-between md:ml-auto md:w-auto">
         {isReduced ? (
           <span className="text-xs tabular-nums text-muted-foreground">
             {visibleTaskCount} task{visibleTaskCount === 1 ? "" : "s"} shown
@@ -183,7 +180,7 @@ export function FilterBar({
             type="button"
             variant="ghost"
             size="sm"
-            className="h-7 text-xs text-muted-foreground hover:text-foreground"
+            className="min-h-11 text-xs text-muted-foreground hover:bg-muted/60 hover:text-foreground md:h-7 md:min-h-0"
             onClick={onClearAll}
           >
             Clear all

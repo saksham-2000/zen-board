@@ -114,9 +114,11 @@ export function CreateTaskModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md" showCloseButton>
+      <DialogContent className="md:max-w-md" showCloseButton>
         <DialogHeader>
-          <DialogTitle>New task</DialogTitle>
+          <DialogTitle className="text-lg font-semibold tracking-tight">
+            New task
+          </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="grid gap-4">
           <div className="grid gap-2">

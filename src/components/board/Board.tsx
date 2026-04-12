@@ -40,13 +40,24 @@ function isColumnId(id: string | number): id is TaskStatus {
   return COLUMN_IDS.has(id as TaskStatus);
 }
 
+function BoardHeader({ tasks }: { tasks: Task[] }) {
+  return (
+    <header className="flex flex-col gap-3 border-b border-border pb-3 md:flex-row md:items-center md:justify-between md:gap-4">
+      <h1 className="shrink-0 text-2xl font-semibold tracking-tight text-foreground">
+        Zen Board
+      </h1>
+      <BoardStats tasks={tasks} />
+    </header>
+  );
+}
+
 function BoardColumnSkeleton() {
   return (
-    <div className="flex h-full min-h-0 w-[290px] shrink-0 flex-col rounded-xl bg-slate-50/90 dark:bg-slate-950/35">
-      <header className="border-l-[3px] border-solid border-l-slate-400/40 px-3 pb-2 pt-3">
+    <div className="flex h-full min-h-0 w-[min(calc(100vw-2rem),280px)] min-w-[min(calc(100vw-2rem),280px)] shrink-0 flex-col rounded-xl border border-border/40 bg-muted/20 dark:bg-muted/10 max-md:snap-start md:w-56 md:min-w-56 lg:w-[280px] lg:min-w-[280px]">
+      <header className="border-l-2 border-solid border-l-slate-400/45 px-3 pb-2 pt-3">
         <Skeleton className="h-4 w-28 rounded-md" />
       </header>
-      <div className="flex min-h-0 flex-1 flex-col gap-2 px-2 pb-3 pt-1">
+      <div className="flex min-h-0 flex-1 flex-col gap-3 px-3 pb-3 pt-2">
         <Skeleton className="h-20 w-full shrink-0 rounded-lg" />
         <Skeleton className="h-20 w-full shrink-0 rounded-lg" />
         <Skeleton className="h-20 w-full shrink-0 rounded-lg" />
@@ -234,8 +245,14 @@ export function Board() {
   if (loading) {
     return (
       <BoardChrome>
-        <div className="min-h-0 flex-1 overflow-x-auto px-4 md:px-6">
-          <div className="flex h-full min-h-0 gap-6 pb-4">
+        <div className="shrink-0 px-4 pt-3 md:px-6">
+          <div className="flex flex-col gap-3 border-b border-border pb-3 md:flex-row md:items-center md:justify-between">
+            <Skeleton className="h-8 w-44 rounded-md" />
+            <Skeleton className="h-5 w-64 max-w-full rounded-md" />
+          </div>
+        </div>
+        <div className="min-h-0 flex-1 overflow-x-auto overscroll-x-contain px-4 max-md:snap-x max-md:snap-mandatory md:px-6">
+          <div className="flex h-full min-h-0 gap-3 pb-4 pt-3 md:gap-4">
             {COLUMNS.map((col) => (
               <BoardColumnSkeleton key={col.id} />
             ))}
@@ -249,13 +266,16 @@ export function Board() {
   if (error) {
     return (
       <BoardChrome>
-        <div className="flex shrink-0 justify-end px-4 pt-2 md:px-6">
-          <TeamMemberManager
-            teamMembersStore={teamMembersStore}
-            onAfterMemberDelete={refetchTasksAfterMemberChange}
-          />
+        <div className="shrink-0 space-y-2 px-4 pt-3 md:px-6">
+          <BoardHeader tasks={tasks} />
+          <div className="flex justify-end pb-1">
+            <TeamMemberManager
+              teamMembersStore={teamMembersStore}
+              onAfterMemberDelete={refetchTasksAfterMemberChange}
+            />
+          </div>
         </div>
-        <div className="flex flex-1 items-center justify-center px-4 text-sm text-destructive">
+        <div className="flex flex-1 items-center justify-center px-4 py-8 text-sm text-destructive">
           {error}
         </div>
         {overlays}
@@ -266,11 +286,14 @@ export function Board() {
   if (tasks.length === 0) {
     return (
       <BoardChrome>
-        <div className="flex shrink-0 justify-end px-4 pt-2 md:px-6">
-          <TeamMemberManager
-            teamMembersStore={teamMembersStore}
-            onAfterMemberDelete={refetchTasksAfterMemberChange}
-          />
+        <div className="shrink-0 space-y-2 px-4 pt-3 md:px-6">
+          <BoardHeader tasks={tasks} />
+          <div className="flex justify-end pb-1">
+            <TeamMemberManager
+              teamMembersStore={teamMembersStore}
+              onAfterMemberDelete={refetchTasksAfterMemberChange}
+            />
+          </div>
         </div>
         <div className="flex flex-1 flex-col items-center justify-center gap-4 px-4 py-12">
           <p className="max-w-sm text-center text-sm text-muted-foreground">
@@ -295,14 +318,14 @@ export function Board() {
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}
       >
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 md:px-6">
-          <div className="flex shrink-0 justify-end pb-1 pt-1">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 pt-3 md:px-6">
+          <BoardHeader tasks={tasks} />
+          <div className="flex shrink-0 justify-end py-2">
             <TeamMemberManager
               teamMembersStore={teamMembersStore}
               onAfterMemberDelete={refetchTasksAfterMemberChange}
             />
           </div>
-          <BoardStats tasks={tasks} />
           <FilterBar
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
@@ -318,8 +341,8 @@ export function Board() {
             visibleTaskCount={filteredTasks.length}
             totalTaskCount={tasks.length}
           />
-          <div className="min-h-0 flex-1 overflow-x-auto">
-            <div className="flex h-full min-h-0 gap-6 pb-4">
+          <div className="min-h-0 flex-1 overflow-x-auto overscroll-x-contain max-md:snap-x max-md:snap-mandatory">
+            <div className="flex h-full min-h-0 gap-3 pb-4 pt-1 md:gap-4">
               {COLUMNS.map((col) => (
                 <Column
                   key={col.id}

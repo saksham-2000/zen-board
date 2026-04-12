@@ -77,10 +77,10 @@ export function AssigneePicker({
             size="sm"
             disabled={disabled || Boolean(busyId)}
             className={cn(
-              "h-auto min-h-0 gap-1.5 rounded-full border px-2 py-1 text-xs font-medium",
+              "h-auto min-h-0 gap-1.5 rounded-full border px-2 py-1 text-xs font-medium transition-all duration-150",
               labelColorClass(member.color),
               on && "ring-2 ring-foreground/30 ring-offset-2 ring-offset-background",
-              !on && "opacity-80 hover:opacity-100",
+              !on && "opacity-80 hover:opacity-100 hover:shadow-sm",
             )}
             aria-pressed={on}
             onClick={() => void toggle(member.id)}

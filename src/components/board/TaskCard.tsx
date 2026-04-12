@@ -15,9 +15,9 @@ interface TaskCardProps {
 }
 
 const PRIORITY_DOT: Record<TaskPriority, string> = {
-  high: "bg-rose-400/45",
-  normal: "bg-sky-500/35",
-  low: "bg-zinc-400/45",
+  high: "bg-rose-400/50",
+  normal: "bg-slate-400/55",
+  low: "bg-zinc-400/50",
 };
 
 function formatDueDate(value: string): string {
@@ -54,14 +54,14 @@ function getDueUrgency(dueDateIso: string): DueUrgency {
 }
 
 const URGENCY_DOT: Record<DueUrgency, string> = {
-  overdue: "bg-rose-500/70",
-  soon: "bg-amber-500/65",
-  normal: "bg-muted-foreground/35",
+  overdue: "bg-rose-400/55",
+  soon: "bg-amber-400/50",
+  normal: "bg-muted-foreground/40",
 };
 
 const URGENCY_TEXT: Record<DueUrgency, string> = {
-  overdue: "text-rose-600/90 dark:text-rose-400/90",
-  soon: "text-amber-700/90 dark:text-amber-400/85",
+  overdue: "text-rose-800/90 dark:text-rose-400/85",
+  soon: "text-amber-900/85 dark:text-amber-400/80",
   normal: "text-muted-foreground",
 };
 
@@ -87,9 +87,10 @@ export function TaskCard({ task, onClick, isOverlay }: TaskCardProps) {
     <Card
       size="sm"
       className={cn(
-        "gap-0 border border-border/50 bg-card py-0 shadow-sm transition-all duration-200",
-        !isOverlay && "hover:-translate-y-px hover:shadow-md",
-        isOverlay && "cursor-grabbing opacity-90 shadow-lg",
+        "gap-0 border-border py-0 shadow-sm transition-all duration-150",
+        !isOverlay &&
+          "hover:-translate-y-px hover:border-border hover:shadow-md",
+        isOverlay && "cursor-grabbing opacity-95 shadow-lg",
         !isOverlay &&
           cn(
             "cursor-grab active:cursor-grabbing",
@@ -101,8 +102,8 @@ export function TaskCard({ task, onClick, isOverlay }: TaskCardProps) {
     >
       <CardContent
         className={cn(
-          "relative flex flex-col gap-1.5 px-3 py-2.5",
-          assigneeList.length > 0 && "pb-6",
+          "relative flex flex-col gap-2 px-3 py-3",
+          assigneeList.length > 0 && "pb-8",
         )}
       >
         <div className="flex items-start gap-2">
@@ -113,7 +114,7 @@ export function TaskCard({ task, onClick, isOverlay }: TaskCardProps) {
               PRIORITY_DOT[task.priority],
             )}
           />
-          <p className="min-w-0 flex-1 truncate font-medium leading-snug text-foreground/90">
+          <p className="min-w-0 flex-1 truncate text-sm font-medium leading-snug text-foreground">
             {task.title}
           </p>
         </div>
@@ -124,13 +125,13 @@ export function TaskCard({ task, onClick, isOverlay }: TaskCardProps) {
                 key={label.id}
                 title={label.name}
                 className={cn(
-                  "size-1.5 shrink-0 rounded-full",
+                  "size-1.5 shrink-0 rounded-full transition-opacity hover:opacity-80",
                   labelDotClass(label.color),
                 )}
               />
             ))}
             {labelOverflow > 0 ? (
-              <span className="text-[10px] tabular-nums text-muted-foreground">
+              <span className="text-xs tabular-nums text-muted-foreground">
                 +{labelOverflow} more
               </span>
             ) : null}
@@ -142,10 +143,15 @@ export function TaskCard({ task, onClick, isOverlay }: TaskCardProps) {
               aria-hidden
               className={cn("size-1 shrink-0 rounded-full", URGENCY_DOT[dueUrgency])}
             />
-            <span className={cn("text-xs tabular-nums", URGENCY_TEXT[dueUrgency])}>
+            <span
+              className={cn(
+                "text-xs font-normal tabular-nums",
+                URGENCY_TEXT[dueUrgency],
+              )}
+            >
               {formatDueDate(task.due_date)}
               {dueUrgency === "overdue" ? (
-                <span className="ml-1.5 text-[10px] font-medium tracking-wide text-rose-600/80 uppercase dark:text-rose-400/75">
+                <span className="ml-1.5 text-xs font-medium tracking-wide text-rose-700/90 uppercase dark:text-rose-400/80">
                   Overdue
                 </span>
               ) : null}
@@ -154,30 +160,24 @@ export function TaskCard({ task, onClick, isOverlay }: TaskCardProps) {
         ) : null}
         {assigneeList.length > 0 ? (
           <div
-            className="pointer-events-none absolute bottom-1.5 right-2 flex items-center"
+            className="pointer-events-none absolute bottom-2 right-2 flex items-center"
             title={assigneeNamesTitle}
           >
-            <div className="pointer-events-auto flex items-center">
+            <div className="pointer-events-auto flex items-center -space-x-1">
               {visibleAssignees.map((m, i) => (
                 <span
                   key={m.id}
                   className={cn(
-                    "flex size-[1.125rem] items-center justify-center rounded-full border-2 border-card text-[7px] font-semibold leading-none",
+                    "flex size-5 items-center justify-center rounded-full border-2 border-card text-xs font-semibold leading-none",
                     labelColorClass(m.color),
                   )}
-                  style={{
-                    marginLeft: i === 0 ? 0 : -5,
-                    zIndex: visibleAssignees.length - i,
-                  }}
+                  style={{ zIndex: visibleAssignees.length - i }}
                 >
                   {memberInitials(m.name)}
                 </span>
               ))}
               {assigneeOverflow > 0 ? (
-                <span
-                  className="-ml-[5px] flex h-[1.125rem] min-w-[1.125rem] items-center justify-center rounded-full border-2 border-card bg-muted px-0.5 text-[7px] font-medium tabular-nums text-muted-foreground"
-                  style={{ zIndex: visibleAssignees.length + 1 }}
-                >
+                <span className="z-10 flex size-5 items-center justify-center rounded-full border-2 border-card bg-muted text-xs font-medium tabular-nums leading-none text-muted-foreground">
                   +{assigneeOverflow}
                 </span>
               ) : null}

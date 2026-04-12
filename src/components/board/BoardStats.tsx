@@ -27,11 +27,12 @@ export function BoardStats({ tasks }: { tasks: Task[] }) {
     return { total, completed, overdue };
   }, [tasks]);
 
-  const itemClass = "inline-flex items-center gap-1 text-xs text-muted-foreground";
+  const itemClass =
+    "inline-flex items-center gap-1 text-xs font-normal text-muted-foreground";
 
   return (
     <div
-      className="flex flex-nowrap items-center gap-x-3 overflow-x-auto border-b border-border/30 pb-2 text-muted-foreground whitespace-nowrap"
+      className="flex max-w-full flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground md:flex-nowrap md:justify-end md:overflow-x-auto md:whitespace-nowrap"
       aria-label="Board summary"
     >
       <span className={itemClass}>
@@ -39,7 +40,7 @@ export function BoardStats({ tasks }: { tasks: Task[] }) {
         <span className="tabular-nums">{total}</span>
         <span>total</span>
       </span>
-      <span className="text-border/80" aria-hidden>
+      <span className="text-border" aria-hidden>
         ·
       </span>
       <span className={itemClass}>
@@ -47,14 +48,14 @@ export function BoardStats({ tasks }: { tasks: Task[] }) {
         <span className="tabular-nums">{completed}</span>
         <span>done</span>
       </span>
-      <span className="text-border/80" aria-hidden>
+      <span className="text-border" aria-hidden>
         ·
       </span>
       <span
         className={cn(
           itemClass,
           overdue > 0 &&
-            "font-medium text-rose-700 dark:text-rose-400/90",
+            "font-medium text-rose-700/85 dark:text-rose-400/85",
         )}
       >
         <AlertCircle

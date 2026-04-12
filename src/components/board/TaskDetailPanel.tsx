@@ -81,10 +81,12 @@ function statusLabel(status: TaskStatus): string {
 }
 
 const STATUS_BADGE: Record<TaskStatus, string> = {
-  todo: "border-slate-400/40 bg-slate-500/10 text-slate-700 dark:text-slate-300",
-  in_progress: "border-sky-500/35 bg-sky-500/10 text-sky-800 dark:text-sky-200",
-  in_review: "border-amber-500/35 bg-amber-500/10 text-amber-900 dark:text-amber-200",
-  done: "border-emerald-500/35 bg-emerald-500/10 text-emerald-900 dark:text-emerald-200",
+  todo: "border-slate-300/70 bg-slate-100/80 text-slate-800 dark:border-slate-600/50 dark:bg-slate-800/40 dark:text-slate-200",
+  in_progress:
+    "border-sky-300/60 bg-sky-50/90 text-sky-950 dark:border-sky-600/40 dark:bg-sky-950/30 dark:text-sky-100",
+  in_review:
+    "border-amber-300/60 bg-amber-50/90 text-amber-950 dark:border-amber-600/40 dark:bg-amber-950/25 dark:text-amber-100",
+  done: "border-emerald-300/60 bg-emerald-50/90 text-emerald-950 dark:border-emerald-600/40 dark:bg-emerald-950/25 dark:text-emerald-100",
 };
 
 export function TaskDetailPanel({
@@ -190,13 +192,16 @@ export function TaskDetailPanel({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 overflow-y-auto sm:max-w-md">
+      <SheetContent
+        side="right"
+        className="flex w-full flex-col gap-0 overflow-y-auto md:max-w-md"
+      >
         {task ? (
           <>
-            <SheetHeader className="border-b border-border/50 pb-4 text-left">
+            <SheetHeader className="border-b border-border pb-4 text-left">
               <SheetTitle className="sr-only">Task details</SheetTitle>
               {mode === "view" ? (
-                <h2 className="pr-8 text-xl font-semibold leading-snug text-foreground">
+                <h2 className="pr-8 text-2xl font-semibold leading-snug tracking-tight text-foreground">
                   {task.title}
                 </h2>
               ) : (
@@ -214,7 +219,7 @@ export function TaskDetailPanel({
               )}
             </SheetHeader>
 
-            <div className="flex flex-1 flex-col gap-5 p-4">
+            <div className="flex flex-1 flex-col gap-4 p-4">
               {mode === "view" ? (
                 <>
                   <div className="flex flex-wrap gap-2">
@@ -224,7 +229,7 @@ export function TaskDetailPanel({
                     >
                       {statusLabel(task.status)}
                     </Badge>
-                    <Badge variant="secondary" className="capitalize">
+                    <Badge variant="secondary" className="capitalize text-xs font-medium">
                       {task.priority} priority
                     </Badge>
                   </div>
@@ -295,7 +300,7 @@ export function TaskDetailPanel({
                     <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                       Description
                     </p>
-                    <p className="text-sm leading-relaxed text-foreground/90">
+                    <p className="text-sm font-normal leading-relaxed text-foreground">
                       {task.description?.trim()
                         ? task.description
                         : "No description"}
@@ -410,7 +415,7 @@ export function TaskDetailPanel({
               )}
             </div>
 
-            <SheetFooter className="mt-auto border-t border-border/50">
+            <SheetFooter className="mt-auto border-t border-border">
               {mode === "view" ? (
                 <div className="flex w-full flex-col gap-3">
                   {deleteConfirm ? (
