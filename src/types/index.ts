@@ -21,6 +21,15 @@ export interface Label {
   user_id: string;
 }
 
+/** Board “people” rows in `team_members`; `color` uses the same palette as `LabelColor`. */
+export interface TeamMember {
+  id: string;
+  name: string;
+  color: string;
+  user_id: string;
+  created_at: string;
+}
+
 export interface Task {
   id: string;
   title: string;
@@ -31,4 +40,5 @@ export interface Task {
   user_id: string;
   created_at: string;
   labels?: Label[];
+  assignees?: TeamMember[];
 }

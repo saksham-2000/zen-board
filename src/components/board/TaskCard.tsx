@@ -2,7 +2,8 @@
 
 import { useDraggable } from "@dnd-kit/core";
 import { Card, CardContent } from "@/components/ui/card";
-import { labelDotClass } from "@/lib/label-colors";
+import { labelColorClass, labelDotClass } from "@/lib/label-colors";
+import { memberInitials } from "@/lib/team-member-utils";
 import { cn } from "@/lib/utils";
 import type { Task, TaskPriority } from "@/types";
 
@@ -76,6 +77,12 @@ export function TaskCard({ task, onClick, isOverlay }: TaskCardProps) {
   const visibleLabels = labelList.slice(0, maxLabelDots);
   const labelOverflow = labelList.length - visibleLabels.length;
 
+  const assigneeList = task.assignees ?? [];
+  const maxAssigneeAvatars = 3;
+  const visibleAssignees = assigneeList.slice(0, maxAssigneeAvatars);
+  const assigneeOverflow = assigneeList.length - visibleAssignees.length;
+  const assigneeNamesTitle = assigneeList.map((a) => a.name).join(", ");
+
   const card = (
     <Card
       size="sm"
@@ -92,7 +99,12 @@ export function TaskCard({ task, onClick, isOverlay }: TaskCardProps) {
       )}
       onClick={isOverlay ? undefined : onClick}
     >
-      <CardContent className="flex flex-col gap-1.5 px-3 py-2.5">
+      <CardContent
+        className={cn(
+          "relative flex flex-col gap-1.5 px-3 py-2.5",
+          assigneeList.length > 0 && "pb-6",
+        )}
+      >
         <div className="flex items-start gap-2">
           <span
             aria-hidden
@@ -138,6 +150,38 @@ export function TaskCard({ task, onClick, isOverlay }: TaskCardProps) {
                 </span>
               ) : null}
             </span>
+          </div>
+        ) : null}
+        {assigneeList.length > 0 ? (
+          <div
+            className="pointer-events-none absolute bottom-1.5 right-2 flex items-center"
+            title={assigneeNamesTitle}
+          >
+            <div className="pointer-events-auto flex items-center">
+              {visibleAssignees.map((m, i) => (
+                <span
+                  key={m.id}
+                  className={cn(
+                    "flex size-[1.125rem] items-center justify-center rounded-full border-2 border-card text-[7px] font-semibold leading-none",
+                    labelColorClass(m.color),
+                  )}
+                  style={{
+                    marginLeft: i === 0 ? 0 : -5,
+                    zIndex: visibleAssignees.length - i,
+                  }}
+                >
+                  {memberInitials(m.name)}
+                </span>
+              ))}
+              {assigneeOverflow > 0 ? (
+                <span
+                  className="-ml-[5px] flex h-[1.125rem] min-w-[1.125rem] items-center justify-center rounded-full border-2 border-card bg-muted px-0.5 text-[7px] font-medium tabular-nums text-muted-foreground"
+                  style={{ zIndex: visibleAssignees.length + 1 }}
+                >
+                  +{assigneeOverflow}
+                </span>
+              ) : null}
+            </div>
           </div>
         ) : null}
       </CardContent>

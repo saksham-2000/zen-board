@@ -3,9 +3,18 @@
 import { SearchIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { labelColorClass } from "@/lib/label-colors";
 import { cn } from "@/lib/utils";
-import type { Label, TaskPriority } from "@/types";
+import type { Label, TaskPriority, TeamMember } from "@/types";
+
+const ASSIGNEE_FILTER_ALL = "__all__";
 
 export type BoardPriorityFilter = "all" | TaskPriority;
 
@@ -21,6 +30,9 @@ export interface FilterBarProps {
   onSearchChange: (value: string) => void;
   priorityFilter: BoardPriorityFilter;
   onPriorityChange: (value: BoardPriorityFilter) => void;
+  teamMembers: TeamMember[];
+  assigneeFilterMemberId: string;
+  onAssigneeFilterMemberIdChange: (memberId: string) => void;
   labels: Label[];
   selectedLabelIds: readonly string[];
   onToggleLabel: (labelId: string) => void;
@@ -34,6 +46,9 @@ export function FilterBar({
   onSearchChange,
   priorityFilter,
   onPriorityChange,
+  teamMembers,
+  assigneeFilterMemberId,
+  onAssigneeFilterMemberIdChange,
   labels,
   selectedLabelIds,
   onToggleLabel,
@@ -44,8 +59,10 @@ export function FilterBar({
   const selectedLabels = new Set(selectedLabelIds);
   const searchActive = searchQuery.trim().length > 0;
   const priorityActive = priorityFilter !== "all";
+  const assigneeActive = assigneeFilterMemberId.length > 0;
   const labelsActive = selectedLabelIds.length > 0;
-  const anyFilterActive = searchActive || priorityActive || labelsActive;
+  const anyFilterActive =
+    searchActive || priorityActive || assigneeActive || labelsActive;
   const isReduced = visibleTaskCount < totalTaskCount;
 
   return (
@@ -91,6 +108,37 @@ export function FilterBar({
           );
         })}
       </div>
+
+      {teamMembers.length > 0 ? (
+        <div className="shrink-0">
+          <label htmlFor="board-assignee-filter" className="sr-only">
+            Filter by assignee
+          </label>
+          <Select
+            value={assigneeFilterMemberId || ASSIGNEE_FILTER_ALL}
+            onValueChange={(v) =>
+              onAssigneeFilterMemberIdChange(
+                v === ASSIGNEE_FILTER_ALL ? "" : v,
+              )
+            }
+          >
+            <SelectTrigger
+              id="board-assignee-filter"
+              className="h-8 w-[min(100%,9.5rem)] text-xs"
+            >
+              <SelectValue placeholder="Assignee" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ASSIGNEE_FILTER_ALL}>All assignees</SelectItem>
+              {teamMembers.map((m) => (
+                <SelectItem key={m.id} value={m.id}>
+                  {m.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      ) : null}
 
       {labels.length > 0 ? (
         <>

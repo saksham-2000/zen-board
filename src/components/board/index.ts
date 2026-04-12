@@ -1,3 +1,4 @@
+export { AssigneePicker } from "./AssigneePicker";
 export { Board } from "./Board";
 export { BoardStats } from "./BoardStats";
 export { Column } from "./Column";
@@ -6,5 +7,6 @@ export type { CreateTaskSubmitData } from "./CreateTaskModal";
 export { FilterBar, type BoardPriorityFilter } from "./FilterBar";
 export { LabelManager } from "./LabelManager";
 export { LabelPicker } from "./LabelPicker";
+export { TeamMemberManager } from "./TeamMemberManager";
 export { TaskCard } from "./TaskCard";
 export { TaskDetailPanel } from "./TaskDetailPanel";

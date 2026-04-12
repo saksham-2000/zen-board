@@ -19,7 +19,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import type { TaskPriority, TaskStatus } from "@/types";
+import { labelColorClass } from "@/lib/label-colors";
+import { memberInitials } from "@/lib/team-member-utils";
+import { cn } from "@/lib/utils";
+import type { TaskPriority, TaskStatus, TeamMember } from "@/types";
 
 export interface CreateTaskSubmitData {
   title: string;
@@ -27,6 +30,8 @@ export interface CreateTaskSubmitData {
   priority?: TaskPriority;
   due_date?: string;
   status: TaskStatus;
+  /** Member ids to link after the task row exists. */
+  assigneeIds?: string[];
 }
 
 interface CreateTaskModalProps {
@@ -34,6 +39,7 @@ interface CreateTaskModalProps {
   onOpenChange: (open: boolean) => void;
   defaultStatus?: TaskStatus;
   onSubmit: (data: CreateTaskSubmitData) => Promise<void>;
+  teamMembers: TeamMember[];
 }
 
 export function CreateTaskModal({
@@ -41,12 +47,16 @@ export function CreateTaskModal({
   onOpenChange,
   defaultStatus,
   onSubmit,
+  teamMembers,
 }: CreateTaskModalProps) {
   const titleRef = useRef<HTMLInputElement>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<TaskPriority>("normal");
   const [dueDate, setDueDate] = useState("");
+  const [selectedAssigneeIds, setSelectedAssigneeIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [submitting, setSubmitting] = useState(false);
 
   const clearForm = useCallback(() => {
@@ -54,6 +64,16 @@ export function CreateTaskModal({
     setDescription("");
     setPriority("normal");
     setDueDate("");
+    setSelectedAssigneeIds(new Set());
+  }, []);
+
+  const toggleAssignee = useCallback((id: string) => {
+    setSelectedAssigneeIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   }, []);
 
   useEffect(() => {
@@ -73,12 +93,15 @@ export function CreateTaskModal({
     if (!canSubmit) return;
     setSubmitting(true);
     try {
+      const assigneeIds =
+        selectedAssigneeIds.size > 0 ? [...selectedAssigneeIds] : undefined;
       await onSubmit({
         title: title.trim(),
         description: description.trim() || undefined,
         priority,
         due_date: dueDate || undefined,
         status: defaultStatus ?? "todo",
+        assigneeIds,
       });
       clearForm();
       onOpenChange(false);
@@ -149,6 +172,50 @@ export function CreateTaskModal({
               onChange={(ev) => setDueDate(ev.target.value)}
             />
           </div>
+          {teamMembers.length > 0 ? (
+            <div className="grid gap-2">
+              <span className="text-sm font-medium">Assignees</span>
+              <p className="text-xs text-muted-foreground">
+                Optional — select who owns this task.
+              </p>
+              <div
+                className="flex flex-wrap gap-2"
+                role="group"
+                aria-label="Select assignees"
+              >
+                {teamMembers.map((member) => {
+                  const on = selectedAssigneeIds.has(member.id);
+                  return (
+                    <button
+                      key={member.id}
+                      type="button"
+                      onClick={() => toggleAssignee(member.id)}
+                      disabled={submitting}
+                      className={cn(
+                        "inline-flex h-auto min-h-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-opacity",
+                        "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none",
+                        labelColorClass(member.color),
+                        on
+                          ? "ring-2 ring-foreground/30 ring-offset-2 ring-offset-background"
+                          : "opacity-80 hover:opacity-100",
+                      )}
+                      aria-pressed={on}
+                    >
+                      <span
+                        className={cn(
+                          "flex size-5 shrink-0 items-center justify-center rounded-full text-[9px] font-semibold leading-none",
+                          "border border-foreground/10 bg-background/40",
+                        )}
+                      >
+                        {memberInitials(member.name)}
+                      </span>
+                      {member.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
           <DialogFooter className="sm:justify-end">
             <Button
               type="button"

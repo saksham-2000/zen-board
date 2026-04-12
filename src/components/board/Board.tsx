@@ -21,12 +21,15 @@ import {
 import { Column } from "./Column";
 import { CreateTaskModal } from "./CreateTaskModal";
 import { BoardStats } from "./BoardStats";
+import { TeamMemberManager } from "./TeamMemberManager";
 import { FilterBar, type BoardPriorityFilter } from "./FilterBar";
 import { TaskCard } from "./TaskCard";
 import { TaskDetailPanel } from "./TaskDetailPanel";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useLabels } from "@/hooks/use-labels";
+import { useTaskAssignees } from "@/hooks/use-task-assignees";
+import { useTeamMembers } from "@/hooks/use-team-members";
 import { COLUMNS } from "@/lib/constants";
 import { useTasks } from "@/hooks/use-tasks";
 import type { Task, TaskStatus } from "@/types";
@@ -73,6 +76,10 @@ export function Board() {
   } = useTasks();
   const labelsStore = useLabels();
   const { labels: boardLabels } = labelsStore;
+  const teamMembersStore = useTeamMembers();
+  const { assignMember, unassignMember, assignMembersToTask } = useTaskAssignees(
+    () => void refetch(),
+  );
   const [createOpen, setCreateOpen] = useState(false);
   const [createDefaultStatus, setCreateDefaultStatus] = useState<TaskStatus>("todo");
   const [dragActiveTask, setDragActiveTask] = useState<Task | null>(null);
@@ -83,6 +90,7 @@ export function Board() {
   const [searchQuery, setSearchQuery] = useState("");
   const [priorityFilter, setPriorityFilter] =
     useState<BoardPriorityFilter>("all");
+  const [assigneeFilterMemberId, setAssigneeFilterMemberId] = useState("");
 
   const panelTask = useMemo(() => {
     if (!selectedTask) return null;
@@ -112,6 +120,10 @@ export function Board() {
       if (q && !task.title.toLowerCase().includes(q)) return false;
       if (priorityFilter !== "all" && task.priority !== priorityFilter)
         return false;
+      if (assigneeFilterMemberId) {
+        const onTask = task.assignees?.map((a) => a.id) ?? [];
+        if (!onTask.includes(assigneeFilterMemberId)) return false;
+      }
       if (selectedLabelFilterIds.length > 0) {
         const wanted = new Set(selectedLabelFilterIds);
         const onTask = task.labels?.map((l) => l.id) ?? [];
@@ -119,7 +131,13 @@ export function Board() {
       }
       return true;
     });
-  }, [tasks, searchQuery, priorityFilter, selectedLabelFilterIds]);
+  }, [
+    tasks,
+    searchQuery,
+    priorityFilter,
+    assigneeFilterMemberId,
+    selectedLabelFilterIds,
+  ]);
 
   const byStatus = useMemo(() => {
     const map = new Map<TaskStatus, Task[]>();
@@ -142,8 +160,13 @@ export function Board() {
   const clearAllBoardFilters = useCallback(() => {
     setSearchQuery("");
     setPriorityFilter("all");
+    setAssigneeFilterMemberId("");
     setSelectedLabelFilterIds([]);
   }, []);
+
+  const refetchTasksAfterMemberChange = useCallback(() => {
+    void refetch();
+  }, [refetch]);
 
   const handleDragStart = useCallback(
     (event: DragStartEvent) => {
@@ -183,19 +206,26 @@ export function Board() {
         onDelete={deleteTask}
         onTasksRefetch={() => void refetch()}
         labelsStore={labelsStore}
+        teamMembersStore={teamMembersStore}
+        assignMember={assignMember}
+        unassignMember={unassignMember}
       />
       <CreateTaskModal
         open={createOpen}
         onOpenChange={setCreateOpen}
         defaultStatus={createDefaultStatus}
+        teamMembers={teamMembersStore.members}
         onSubmit={async (data) => {
-          await createTask({
+          const taskId = await createTask({
             title: data.title,
             description: data.description,
             priority: data.priority,
             due_date: data.due_date,
             status: data.status,
           });
+          if (data.assigneeIds?.length) {
+            await assignMembersToTask(taskId, data.assigneeIds);
+          }
         }}
       />
     </>
@@ -219,6 +249,12 @@ export function Board() {
   if (error) {
     return (
       <BoardChrome>
+        <div className="flex shrink-0 justify-end px-4 pt-2 md:px-6">
+          <TeamMemberManager
+            teamMembersStore={teamMembersStore}
+            onAfterMemberDelete={refetchTasksAfterMemberChange}
+          />
+        </div>
         <div className="flex flex-1 items-center justify-center px-4 text-sm text-destructive">
           {error}
         </div>
@@ -230,6 +266,12 @@ export function Board() {
   if (tasks.length === 0) {
     return (
       <BoardChrome>
+        <div className="flex shrink-0 justify-end px-4 pt-2 md:px-6">
+          <TeamMemberManager
+            teamMembersStore={teamMembersStore}
+            onAfterMemberDelete={refetchTasksAfterMemberChange}
+          />
+        </div>
         <div className="flex flex-1 flex-col items-center justify-center gap-4 px-4 py-12">
           <p className="max-w-sm text-center text-sm text-muted-foreground">
             Create your first task to get started
@@ -254,12 +296,21 @@ export function Board() {
         onDragCancel={handleDragCancel}
       >
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 md:px-6">
+          <div className="flex shrink-0 justify-end pb-1 pt-1">
+            <TeamMemberManager
+              teamMembersStore={teamMembersStore}
+              onAfterMemberDelete={refetchTasksAfterMemberChange}
+            />
+          </div>
           <BoardStats tasks={tasks} />
           <FilterBar
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
             priorityFilter={priorityFilter}
             onPriorityChange={setPriorityFilter}
+            teamMembers={teamMembersStore.members}
+            assigneeFilterMemberId={assigneeFilterMemberId}
+            onAssigneeFilterMemberIdChange={setAssigneeFilterMemberId}
             labels={boardLabels}
             selectedLabelIds={selectedLabelFilterIds}
             onToggleLabel={toggleLabelFilter}

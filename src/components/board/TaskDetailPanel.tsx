@@ -21,10 +21,13 @@ import {
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import type { LabelsStore } from "@/hooks/use-labels";
+import type { TeamMembersStore } from "@/hooks/use-team-members";
 import { COLUMNS } from "@/lib/constants";
 import { labelColorClass } from "@/lib/label-colors";
+import { memberInitials } from "@/lib/team-member-utils";
 import { cn } from "@/lib/utils";
 import type { Task, TaskPriority, TaskStatus } from "@/types";
+import { AssigneePicker } from "./AssigneePicker";
 import { LabelManager } from "./LabelManager";
 import { LabelPicker } from "./LabelPicker";
 
@@ -38,6 +41,9 @@ interface TaskDetailPanelProps {
   onTasksRefetch?: () => void | Promise<void>;
   /** Same `useLabels()` instance as the board so new labels appear in the filter bar without refresh. */
   labelsStore: LabelsStore;
+  teamMembersStore: TeamMembersStore;
+  assignMember: (taskId: string, memberId: string) => Promise<void>;
+  unassignMember: (taskId: string, memberId: string) => Promise<void>;
 }
 
 function formatRelativeTime(iso: string): string {
@@ -89,6 +95,9 @@ export function TaskDetailPanel({
   onDelete,
   onTasksRefetch,
   labelsStore,
+  teamMembersStore,
+  assignMember,
+  unassignMember,
 }: TaskDetailPanelProps) {
   const {
     labels: allLabels,
@@ -98,6 +107,7 @@ export function TaskDetailPanel({
     addLabelToTask,
     removeLabelFromTask,
   } = labelsStore;
+  const { members: allTeamMembers } = teamMembersStore;
 
   const [mode, setMode] = useState<"view" | "edit">("view");
   const [deleteConfirm, setDeleteConfirm] = useState(false);
@@ -250,6 +260,38 @@ export function TaskDetailPanel({
                     )}
                   </div>
                   <div>
+                    <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Assignees
+                    </p>
+                    {task.assignees && task.assignees.length > 0 ? (
+                      <div className="flex flex-row flex-wrap gap-x-3 gap-y-2">
+                        {task.assignees.map((m) => (
+                          <div
+                            key={m.id}
+                            className="flex items-center gap-2"
+                          >
+                            <span
+                              className={cn(
+                                "flex size-8 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold leading-none",
+                                labelColorClass(m.color),
+                              )}
+                              aria-hidden
+                            >
+                              {memberInitials(m.name)}
+                            </span>
+                            <span className="min-w-0 truncate text-sm text-foreground/90">
+                              {m.name}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        No assignees
+                      </p>
+                    )}
+                  </div>
+                  <div>
                     <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                       Description
                     </p>
@@ -350,6 +392,17 @@ export function TaskDetailPanel({
                       onAddToTask={addLabelToTask}
                       onRemoveFromTask={removeLabelFromTask}
                       onAssignmentsChange={onTasksRefetch}
+                      disabled={saving}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <span className="text-sm font-medium">Assignees</span>
+                    <AssigneePicker
+                      taskId={task.id}
+                      assigned={task.assignees ?? []}
+                      available={allTeamMembers}
+                      onAssign={assignMember}
+                      onUnassign={unassignMember}
                       disabled={saving}
                     />
                   </div>
