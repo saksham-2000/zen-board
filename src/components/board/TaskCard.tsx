@@ -26,11 +26,50 @@ function formatDueDate(value: string): string {
   });
 }
 
+type DueUrgency = "overdue" | "soon" | "normal";
+
+// Urgency tiers: overdue, soon (within 48h), or normal.
+function getDueUrgency(dueDateIso: string): DueUrgency {
+  const [y, m, d] = dueDateIso.slice(0, 10).split("-").map(Number);
+  const dueDay = new Date(y, m - 1, d);
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const tomorrowStart = new Date(todayStart);
+  tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+  const dueStart = new Date(
+    dueDay.getFullYear(),
+    dueDay.getMonth(),
+    dueDay.getDate(),
+  );
+  if (dueStart < todayStart) return "overdue";
+  if (
+    dueStart.getTime() === todayStart.getTime() ||
+    dueStart.getTime() === tomorrowStart.getTime()
+  ) {
+    return "soon";
+  }
+  return "normal";
+}
+
+const URGENCY_DOT: Record<DueUrgency, string> = {
+  overdue: "bg-rose-500/70",
+  soon: "bg-amber-500/65",
+  normal: "bg-muted-foreground/35",
+};
+
+const URGENCY_TEXT: Record<DueUrgency, string> = {
+  overdue: "text-rose-600/90 dark:text-rose-400/90",
+  soon: "text-amber-700/90 dark:text-amber-400/85",
+  normal: "text-muted-foreground",
+};
+
 export function TaskCard({ task, onClick, isOverlay }: TaskCardProps) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: task.id,
     disabled: Boolean(isOverlay),
   });
+
+  const dueUrgency = task.due_date ? getDueUrgency(task.due_date) : null;
 
   const card = (
     <Card
@@ -61,10 +100,21 @@ export function TaskCard({ task, onClick, isOverlay }: TaskCardProps) {
             {task.title}
           </p>
         </div>
-        {task.due_date ? (
-          <p className="pl-3.5 text-xs text-muted-foreground">
-            {formatDueDate(task.due_date)}
-          </p>
+        {task.due_date && dueUrgency ? (
+          <div className="flex items-center gap-1.5 pl-3.5">
+            <span
+              aria-hidden
+              className={cn("size-1 shrink-0 rounded-full", URGENCY_DOT[dueUrgency])}
+            />
+            <span className={cn("text-xs tabular-nums", URGENCY_TEXT[dueUrgency])}>
+              {formatDueDate(task.due_date)}
+              {dueUrgency === "overdue" ? (
+                <span className="ml-1.5 text-[10px] font-medium tracking-wide text-rose-600/80 uppercase dark:text-rose-400/75">
+                  Overdue
+                </span>
+              ) : null}
+            </span>
+          </div>
         ) : null}
       </CardContent>
     </Card>
