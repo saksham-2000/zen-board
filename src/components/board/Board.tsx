@@ -11,10 +11,11 @@ import {
   type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { useCallback, useMemo, useState } from "react";
+import { startTransition, useCallback, useMemo, useState } from "react";
 import { Column } from "./Column";
 import { CreateTaskModal } from "./CreateTaskModal";
 import { TaskCard } from "./TaskCard";
+import { TaskDetailPanel } from "./TaskDetailPanel";
 import { COLUMNS } from "@/lib/constants";
 import { useTasks } from "@/hooks/use-tasks";
 import type { Task, TaskStatus } from "@/types";
@@ -26,10 +27,24 @@ function isColumnId(id: string | number): id is TaskStatus {
 }
 
 export function Board() {
-  const { tasks, loading, error, createTask, moveTask } = useTasks();
+  const { tasks, loading, error, createTask, moveTask, updateTask, deleteTask } =
+    useTasks();
   const [createOpen, setCreateOpen] = useState(false);
   const [createDefaultStatus, setCreateDefaultStatus] = useState<TaskStatus>("todo");
-  const [activeTask, setActiveTask] = useState<Task | null>(null);
+  const [dragActiveTask, setDragActiveTask] = useState<Task | null>(null);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+
+  // Keep panel in sync with refetched rows (selectedTask is a stale snapshot from the card click).
+  const panelTask = useMemo(() => {
+    if (!selectedTask) return null;
+    return tasks.find((t) => t.id === selectedTask.id) ?? selectedTask;
+  }, [selectedTask, tasks]);
+
+  const handleDetailOpenChange = useCallback((next: boolean) => {
+    if (!next) {
+      startTransition(() => setSelectedTask(null));
+    }
+  }, []);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -55,7 +70,7 @@ export function Board() {
   const handleDragStart = useCallback(
     (event: DragStartEvent) => {
       const id = String(event.active.id);
-      setActiveTask(tasks.find((t) => t.id === id) ?? null);
+      setDragActiveTask(tasks.find((t) => t.id === id) ?? null);
     },
     [tasks],
   );
@@ -66,7 +81,7 @@ export function Board() {
 
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
-      setActiveTask(null);
+      setDragActiveTask(null);
       const { active, over } = event;
       if (!over) return;
       const taskId = String(active.id);
@@ -77,7 +92,7 @@ export function Board() {
   );
 
   const handleDragCancel = useCallback(() => {
-    setActiveTask(null);
+    setDragActiveTask(null);
   }, []);
 
   if (loading) {
@@ -115,14 +130,22 @@ export function Board() {
                 title={col.label}
                 tasks={byStatus.get(col.id) ?? []}
                 onAddClick={() => openCreateModal(col.id)}
+                onTaskClick={setSelectedTask}
               />
             ))}
           </div>
         </div>
         <DragOverlay dropAnimation={null}>
-          {activeTask ? <TaskCard task={activeTask} isOverlay /> : null}
+          {dragActiveTask ? <TaskCard task={dragActiveTask} isOverlay /> : null}
         </DragOverlay>
       </DndContext>
+      <TaskDetailPanel
+        task={panelTask}
+        open={selectedTask !== null}
+        onOpenChange={handleDetailOpenChange}
+        onUpdate={updateTask}
+        onDelete={deleteTask}
+      />
       <CreateTaskModal
         open={createOpen}
         onOpenChange={setCreateOpen}

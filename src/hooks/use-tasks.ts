@@ -113,7 +113,7 @@ export function useTasks() {
 
       if (updateError) {
         setError(updateError.message);
-        return;
+        throw new Error(updateError.message);
       }
       await refetch();
     },
@@ -171,7 +171,7 @@ export function useTasks() {
 
       if (deleteError) {
         setError(deleteError.message);
-        return;
+        throw new Error(deleteError.message);
       }
       await refetch();
     },
