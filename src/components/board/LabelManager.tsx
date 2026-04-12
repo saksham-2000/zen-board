@@ -1,0 +1,245 @@
+"use client";
+
+import { XIcon } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { LABEL_COLOR_NAMES, labelColorClass } from "@/lib/label-colors";
+import { cn } from "@/lib/utils";
+import type { Label, LabelColor } from "@/types";
+
+interface LabelManagerProps {
+  labels: Label[];
+  loading: boolean;
+  onCreateLabel: (name: string, color: string) => Promise<void>;
+  onDeleteLabel: (id: string) => Promise<void>;
+  /** After a label is removed from the DB, refresh tasks so `task.labels` drops stale rows. */
+  onAfterLabelDelete?: () => void | Promise<void>;
+}
+
+export function LabelManager({
+  labels,
+  loading,
+  onCreateLabel,
+  onDeleteLabel,
+  onAfterLabelDelete,
+}: LabelManagerProps) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [color, setColor] = useState<LabelColor>("blue");
+  const [adding, setAdding] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [labelPendingDelete, setLabelPendingDelete] = useState<Label | null>(
+    null,
+  );
+  const deleteInFlightRef = useRef(false);
+
+  useEffect(() => {
+    if (!open) {
+      setName("");
+      setColor("blue");
+    }
+  }, [open]);
+
+  const handleAdd = useCallback(async () => {
+    const trimmed = name.trim();
+    if (!trimmed || adding) return;
+    setAdding(true);
+    try {
+      await onCreateLabel(trimmed, color);
+      setName("");
+    } finally {
+      setAdding(false);
+    }
+  }, [name, color, adding, onCreateLabel]);
+
+  const confirmDeleteOpen = labelPendingDelete !== null;
+
+  const handleConfirmDelete = useCallback(async () => {
+    if (!labelPendingDelete || deleteInFlightRef.current) return;
+    deleteInFlightRef.current = true;
+    const id = labelPendingDelete.id;
+    setDeletingId(id);
+    try {
+      await onDeleteLabel(id);
+      await onAfterLabelDelete?.();
+      setLabelPendingDelete(null);
+    } finally {
+      deleteInFlightRef.current = false;
+      setDeletingId(null);
+    }
+  }, [labelPendingDelete, onDeleteLabel, onAfterLabelDelete]);
+
+  return (
+    <div className="relative inline-block">
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-7 text-xs"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+      >
+        Manage labels
+      </Button>
+      {open ? (
+        <>
+          <button
+            type="button"
+            className="fixed inset-0 z-[80] cursor-default bg-transparent"
+            aria-label="Close label manager"
+            onClick={() => setOpen(false)}
+          />
+          <div
+            className="absolute right-0 z-[90] mt-1 w-[min(100vw-2rem,18rem)] rounded-lg border border-border/60 bg-popover p-3 text-popover-foreground shadow-md ring-1 ring-foreground/5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="mb-2 text-xs font-medium text-muted-foreground">
+              Your labels
+            </p>
+            <div className="mb-3 max-h-40 space-y-1.5 overflow-y-auto">
+              {loading ? (
+                <>
+                  <Skeleton className="h-7 w-full rounded-md" />
+                  <Skeleton className="h-7 w-full rounded-md" />
+                </>
+              ) : labels.length === 0 ? (
+                <p className="py-2 text-xs text-muted-foreground">No labels yet</p>
+              ) : (
+                labels.map((label) => (
+                  <div
+                    key={label.id}
+                    className="flex items-center justify-between gap-2 rounded-md border border-border/40 bg-muted/20 px-2 py-1"
+                  >
+                    <span
+                      className={cn(
+                        "min-w-0 truncate rounded-md px-2 py-0.5 text-xs font-medium",
+                        labelColorClass(label.color),
+                      )}
+                    >
+                      {label.name}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      className="size-7 shrink-0 text-muted-foreground hover:text-destructive"
+                      disabled={deletingId === label.id}
+                      aria-label={`Delete label ${label.name}`}
+                      onClick={() => setLabelPendingDelete(label)}
+                    >
+                      <XIcon className="size-3.5" />
+                    </Button>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="border-t border-border/50 pt-3">
+              <p className="mb-2 text-xs font-medium text-muted-foreground">
+                Add label
+              </p>
+              <div className="flex flex-col gap-2">
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Name"
+                  className="h-8 text-sm"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      void handleAdd();
+                    }
+                  }}
+                />
+                <div className="flex flex-wrap gap-1.5" role="group" aria-label="Label color">
+                  {LABEL_COLOR_NAMES.map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      title={c}
+                      onClick={() => setColor(c)}
+                      className={cn(
+                        "size-6 rounded-full border-2 transition-transform",
+                        c === "red" && "border-red-600/30 bg-red-500/50",
+                        c === "orange" && "border-orange-600/30 bg-orange-500/50",
+                        c === "amber" && "border-amber-600/30 bg-amber-500/50",
+                        c === "green" && "border-emerald-600/30 bg-emerald-500/50",
+                        c === "blue" && "border-sky-600/30 bg-sky-500/50",
+                        c === "purple" && "border-purple-600/30 bg-purple-500/50",
+                        c === "pink" && "border-pink-600/30 bg-pink-500/50",
+                        color === c && "scale-110 ring-2 ring-foreground/25 ring-offset-2 ring-offset-popover",
+                      )}
+                    />
+                  ))}
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-8 w-full"
+                  disabled={adding || !name.trim()}
+                  onClick={() => void handleAdd()}
+                >
+                  {adding ? "Adding…" : "Add"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </>
+      ) : null}
+
+      <Dialog
+        open={confirmDeleteOpen}
+        onOpenChange={(next) => {
+          if (!next) setLabelPendingDelete(null);
+        }}
+      >
+        <DialogContent
+          overlayClassName="z-[200]"
+          className="z-[200] sm:max-w-md"
+          showCloseButton={!deletingId}
+          onPointerDownOutside={(e) => {
+            if (deletingId) e.preventDefault();
+          }}
+          onEscapeKeyDown={(e) => {
+            if (deletingId) e.preventDefault();
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>Delete this label?</DialogTitle>
+            <DialogDescription>
+              &quot;{labelPendingDelete?.name}&quot; will be removed from every
+              task that uses it. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={Boolean(deletingId)}
+              onClick={() => setLabelPendingDelete(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={Boolean(deletingId)}
+              onClick={() => void handleConfirmDelete()}
+            >
+              {deletingId ? "Deleting…" : "Delete label"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

@@ -2,6 +2,7 @@
 
 import { useDraggable } from "@dnd-kit/core";
 import { Card, CardContent } from "@/components/ui/card";
+import { labelDotClass } from "@/lib/label-colors";
 import { cn } from "@/lib/utils";
 import type { Task, TaskPriority } from "@/types";
 
@@ -70,6 +71,10 @@ export function TaskCard({ task, onClick, isOverlay }: TaskCardProps) {
   });
 
   const dueUrgency = task.due_date ? getDueUrgency(task.due_date) : null;
+  const labelList = task.labels ?? [];
+  const maxLabelDots = 3;
+  const visibleLabels = labelList.slice(0, maxLabelDots);
+  const labelOverflow = labelList.length - visibleLabels.length;
 
   const card = (
     <Card
@@ -100,6 +105,25 @@ export function TaskCard({ task, onClick, isOverlay }: TaskCardProps) {
             {task.title}
           </p>
         </div>
+        {visibleLabels.length > 0 ? (
+          <div className="flex items-center gap-1 pl-3.5">
+            {visibleLabels.map((label) => (
+              <span
+                key={label.id}
+                title={label.name}
+                className={cn(
+                  "size-1.5 shrink-0 rounded-full",
+                  labelDotClass(label.color),
+                )}
+              />
+            ))}
+            {labelOverflow > 0 ? (
+              <span className="text-[10px] tabular-nums text-muted-foreground">
+                +{labelOverflow} more
+              </span>
+            ) : null}
+          </div>
+        ) : null}
         {task.due_date && dueUrgency ? (
           <div className="flex items-center gap-1.5 pl-3.5">
             <span

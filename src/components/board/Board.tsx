@@ -20,10 +20,12 @@ import {
 } from "react";
 import { Column } from "./Column";
 import { CreateTaskModal } from "./CreateTaskModal";
+import { LabelFilterBar } from "./LabelFilterBar";
 import { TaskCard } from "./TaskCard";
 import { TaskDetailPanel } from "./TaskDetailPanel";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useLabels } from "@/hooks/use-labels";
 import { COLUMNS } from "@/lib/constants";
 import { useTasks } from "@/hooks/use-tasks";
 import type { Task, TaskStatus } from "@/types";
@@ -58,12 +60,25 @@ function BoardChrome({
 }
 
 export function Board() {
-  const { tasks, loading, error, createTask, moveTask, updateTask, deleteTask } =
-    useTasks();
+  const {
+    tasks,
+    loading,
+    error,
+    refetch,
+    createTask,
+    moveTask,
+    updateTask,
+    deleteTask,
+  } = useTasks();
+  const labelsStore = useLabels();
+  const { labels: boardLabels } = labelsStore;
   const [createOpen, setCreateOpen] = useState(false);
   const [createDefaultStatus, setCreateDefaultStatus] = useState<TaskStatus>("todo");
   const [dragActiveTask, setDragActiveTask] = useState<Task | null>(null);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [selectedLabelFilterIds, setSelectedLabelFilterIds] = useState<string[]>(
+    [],
+  );
 
   const panelTask = useMemo(() => {
     if (!selectedTask) return null;
@@ -87,22 +102,43 @@ export function Board() {
     setCreateOpen(true);
   }
 
+  const filteredTasks = useMemo(() => {
+    if (selectedLabelFilterIds.length === 0) return tasks;
+    const wanted = new Set(selectedLabelFilterIds);
+    return tasks.filter((task) => {
+      const onTask = task.labels?.map((l) => l.id) ?? [];
+      return onTask.some((id) => wanted.has(id));
+    });
+  }, [tasks, selectedLabelFilterIds]);
+
   const byStatus = useMemo(() => {
     const map = new Map<TaskStatus, Task[]>();
     for (const col of COLUMNS) map.set(col.id, []);
-    for (const task of tasks) {
+    for (const task of filteredTasks) {
       const list = map.get(task.status);
       if (list) list.push(task);
     }
     return map;
-  }, [tasks]);
+  }, [filteredTasks]);
+
+  const toggleLabelFilter = useCallback((labelId: string) => {
+    setSelectedLabelFilterIds((prev) =>
+      prev.includes(labelId)
+        ? prev.filter((id) => id !== labelId)
+        : [...prev, labelId],
+    );
+  }, []);
+
+  const clearLabelFilters = useCallback(() => {
+    setSelectedLabelFilterIds([]);
+  }, []);
 
   const handleDragStart = useCallback(
     (event: DragStartEvent) => {
       const id = String(event.active.id);
-      setDragActiveTask(tasks.find((t) => t.id === id) ?? null);
+      setDragActiveTask(filteredTasks.find((t) => t.id === id) ?? null);
     },
-    [tasks],
+    [filteredTasks],
   );
 
   const handleDragOver = useCallback((event: DragOverEvent) => {
@@ -133,6 +169,8 @@ export function Board() {
         onOpenChange={handleDetailOpenChange}
         onUpdate={updateTask}
         onDelete={deleteTask}
+        onTasksRefetch={() => void refetch()}
+        labelsStore={labelsStore}
       />
       <CreateTaskModal
         open={createOpen}
@@ -203,18 +241,26 @@ export function Board() {
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}
       >
-        <div className="min-h-0 flex-1 overflow-x-auto px-4 md:px-6">
-          <div className="flex h-full min-h-0 gap-6 pb-4">
-            {COLUMNS.map((col) => (
-              <Column
-                key={col.id}
-                status={col.id}
-                title={col.label}
-                tasks={byStatus.get(col.id) ?? []}
-                onAddClick={() => openCreateModal(col.id)}
-                onTaskClick={setSelectedTask}
-              />
-            ))}
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 md:px-6">
+          <LabelFilterBar
+            labels={boardLabels}
+            selectedLabelIds={selectedLabelFilterIds}
+            onToggleLabel={toggleLabelFilter}
+            onClearFilters={clearLabelFilters}
+          />
+          <div className="min-h-0 flex-1 overflow-x-auto">
+            <div className="flex h-full min-h-0 gap-6 pb-4">
+              {COLUMNS.map((col) => (
+                <Column
+                  key={col.id}
+                  status={col.id}
+                  title={col.label}
+                  tasks={byStatus.get(col.id) ?? []}
+                  onAddClick={() => openCreateModal(col.id)}
+                  onTaskClick={setSelectedTask}
+                />
+              ))}
+            </div>
           </div>
         </div>
         <DragOverlay dropAnimation={null}>

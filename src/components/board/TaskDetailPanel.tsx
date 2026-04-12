@@ -20,9 +20,13 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
+import type { LabelsStore } from "@/hooks/use-labels";
 import { COLUMNS } from "@/lib/constants";
+import { labelColorClass } from "@/lib/label-colors";
 import { cn } from "@/lib/utils";
 import type { Task, TaskPriority, TaskStatus } from "@/types";
+import { LabelManager } from "./LabelManager";
+import { LabelPicker } from "./LabelPicker";
 
 interface TaskDetailPanelProps {
   task: Task | null;
@@ -30,6 +34,10 @@ interface TaskDetailPanelProps {
   onOpenChange: (open: boolean) => void;
   onUpdate: (id: string, updates: Partial<Task>) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  /** Refetch tasks after label assignment changes (joined `task.labels`). */
+  onTasksRefetch?: () => void | Promise<void>;
+  /** Same `useLabels()` instance as the board so new labels appear in the filter bar without refresh. */
+  labelsStore: LabelsStore;
 }
 
 function formatRelativeTime(iso: string): string {
@@ -79,7 +87,18 @@ export function TaskDetailPanel({
   onOpenChange,
   onUpdate,
   onDelete,
+  onTasksRefetch,
+  labelsStore,
 }: TaskDetailPanelProps) {
+  const {
+    labels: allLabels,
+    loading: labelsLoading,
+    createLabel,
+    deleteLabel,
+    addLabelToTask,
+    removeLabelFromTask,
+  } = labelsStore;
+
   const [mode, setMode] = useState<"view" | "edit">("view");
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -200,6 +219,37 @@ export function TaskDetailPanel({
                     </Badge>
                   </div>
                   <div>
+                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        Labels
+                      </p>
+                      <LabelManager
+                        labels={allLabels}
+                        loading={labelsLoading}
+                        onCreateLabel={createLabel}
+                        onDeleteLabel={deleteLabel}
+                        onAfterLabelDelete={onTasksRefetch}
+                      />
+                    </div>
+                    {task.labels && task.labels.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {task.labels.map((label) => (
+                          <span
+                            key={label.id}
+                            className={cn(
+                              "rounded-full px-2 py-0.5 text-xs font-medium",
+                              labelColorClass(label.color),
+                            )}
+                          >
+                            {label.name}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No labels</p>
+                    )}
+                  </div>
+                  <div>
                     <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                       Description
                     </p>
@@ -281,6 +331,27 @@ export function TaskDetailPanel({
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-sm font-medium">Labels</span>
+                      <LabelManager
+                        labels={allLabels}
+                        loading={labelsLoading}
+                        onCreateLabel={createLabel}
+                        onDeleteLabel={deleteLabel}
+                        onAfterLabelDelete={onTasksRefetch}
+                      />
+                    </div>
+                    <LabelPicker
+                      taskId={task.id}
+                      assigned={task.labels ?? []}
+                      available={allLabels}
+                      onAddToTask={addLabelToTask}
+                      onRemoveFromTask={removeLabelFromTask}
+                      onAssignmentsChange={onTasksRefetch}
+                      disabled={saving}
+                    />
                   </div>
                 </>
               )}

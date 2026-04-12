@@ -12,7 +12,7 @@ import {
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
-import type { Task, TaskPriority, TaskStatus } from "@/types";
+import type { Label, Task, TaskPriority, TaskStatus } from "@/types";
 
 export interface CreateTaskInput {
   title: string;
@@ -22,15 +22,41 @@ export interface CreateTaskInput {
   status?: TaskStatus;
 }
 
+interface TaskLabelJoinRow {
+  label_id: string;
+  labels: Label | null;
+}
+
+interface TaskRowFromDb {
+  id: string;
+  title: string;
+  description: string | null;
+  status: TaskStatus;
+  priority: TaskPriority;
+  due_date: string | null;
+  user_id: string;
+  created_at: string;
+  task_labels: TaskLabelJoinRow[] | null;
+}
+
+function mapTaskRow(row: TaskRowFromDb): Task {
+  const { task_labels, ...rest } = row;
+  const labels = (task_labels ?? [])
+    .map((tl) => tl.labels)
+    .filter((l): l is Label => l != null);
+  return labels.length > 0 ? { ...rest, labels } : { ...rest };
+}
+
 async function fetchTasks(userId: string): Promise<{ tasks: Task[]; error: string | null }> {
   const { data, error } = await supabase
     .from("tasks")
-    .select("*")
+    .select("*, task_labels(label_id, labels(*))")
     .eq("user_id", userId)
     .order("created_at", { ascending: true });
 
   if (error) return { tasks: [], error: error.message };
-  return { tasks: (data ?? []) as Task[], error: null };
+  const rows = (data ?? []) as TaskRowFromDb[];
+  return { tasks: rows.map(mapTaskRow), error: null };
 }
 
 export function useTasks() {
@@ -106,10 +132,17 @@ export function useTasks() {
         toast.error(msg);
         throw new Error(msg);
       }
-      const { id: _i, user_id: _u, created_at: _c, ...columns } = updates;
+      const {
+        id: _i,
+        user_id: _u,
+        created_at: _c,
+        labels: _labels,
+        ...columns
+      } = updates;
       void _i;
       void _u;
       void _c;
+      void _labels;
       if (Object.keys(columns).length === 0) return;
 
       const { error: updateError } = await supabase
@@ -198,6 +231,7 @@ export function useTasks() {
     tasks: user?.id ? tasks : [],
     loading: tasksLoading,
     error: user?.id ? error : null,
+    refetch,
     createTask,
     updateTask,
     moveTask,
