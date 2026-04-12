@@ -2,7 +2,7 @@
 
 // Manages task CRUD against Supabase. Refetches after mutations for simplicity — optimistic updates added later for drag-and-drop.
 
-import { useCallback, useEffect, useState } from "react";
+import { startTransition, useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
 import type { Task, TaskPriority, TaskStatus } from "@/types";
@@ -27,7 +27,7 @@ async function fetchTasks(userId: string): Promise<{ tasks: Task[]; error: strin
 }
 
 export function useTasks() {
-  const { user, loading: authLoading } = useAuth(); // value after colon is a local name of the variable 
+  const { user, loading: authLoading } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,18 +44,14 @@ export function useTasks() {
       return;
     }
     setTasks(next);
-  }, [user?.id]);
+  }, [user]);
 
   useEffect(() => {
-    if (authLoading) return;
-    if (!user?.id) {
-      setTasks([]);
-      setError(null);
-      setLoading(false);
-      return;
-    }
-    void refetch();
-  }, [user?.id, authLoading, refetch]);
+    if (authLoading || !user?.id) return;
+    startTransition(() => {
+      void refetch();
+    });
+  }, [user, authLoading, refetch]);
 
   const createTask = useCallback(
     async (data: CreateTaskInput) => {
@@ -83,7 +79,7 @@ export function useTasks() {
       }
       await refetch();
     },
-    [user?.id, refetch],
+    [user, refetch],
   );
 
   const updateTask = useCallback(
@@ -92,12 +88,10 @@ export function useTasks() {
         setError("Not signed in");
         return;
       }
-      const {
-        id: _id,
-        user_id: _userId,
-        created_at: _createdAt,
-        ...columns
-      } = updates;
+      const { id: _i, user_id: _u, created_at: _c, ...columns } = updates;
+      void _i;
+      void _u;
+      void _c;
       if (Object.keys(columns).length === 0) return;
 
       const { error: updateError } = await supabase
@@ -112,7 +106,7 @@ export function useTasks() {
       }
       await refetch();
     },
-    [user?.id, refetch],
+    [user, refetch],
   );
 
   const deleteTask = useCallback(
@@ -133,15 +127,15 @@ export function useTasks() {
       }
       await refetch();
     },
-    [user?.id, refetch],
+    [user, refetch],
   );
 
   const tasksLoading = authLoading || loading;
 
   return {
-    tasks,
+    tasks: user?.id ? tasks : [],
     loading: tasksLoading,
-    error,
+    error: user?.id ? error : null,
     createTask,
     updateTask,
     deleteTask,
