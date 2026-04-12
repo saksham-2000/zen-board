@@ -20,6 +20,7 @@ import {
 } from "react";
 import { Column } from "./Column";
 import { CreateTaskModal } from "./CreateTaskModal";
+import { BoardStats } from "./BoardStats";
 import { FilterBar, type BoardPriorityFilter } from "./FilterBar";
 import { TaskCard } from "./TaskCard";
 import { TaskDetailPanel } from "./TaskDetailPanel";
@@ -253,6 +254,7 @@ export function Board() {
         onDragCancel={handleDragCancel}
       >
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 md:px-6">
+          <BoardStats tasks={tasks} />
           <FilterBar
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}

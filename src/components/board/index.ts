@@ -1,4 +1,5 @@
 export { Board } from "./Board";
+export { BoardStats } from "./BoardStats";
 export { Column } from "./Column";
 export { CreateTaskModal } from "./CreateTaskModal";
 export type { CreateTaskSubmitData } from "./CreateTaskModal";
