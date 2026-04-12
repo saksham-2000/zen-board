@@ -1,5 +1,6 @@
 "use client";
 
+import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -299,7 +300,14 @@ export function TaskDetailPanel({
                           disabled={deleting}
                           onClick={() => void handleConfirmDelete()}
                         >
-                          {deleting ? "Deleting..." : "Yes, delete"}
+                          {deleting ? (
+                            <>
+                              <Loader2 className="size-4 animate-spin" />
+                              Deleting...
+                            </>
+                          ) : (
+                            "Yes, delete"
+                          )}
                         </Button>
                         <Button
                           type="button"
@@ -350,7 +358,14 @@ export function TaskDetailPanel({
                     disabled={saving || !title.trim()}
                     onClick={() => void handleSave()}
                   >
-                    {saving ? "Saving..." : "Save"}
+                    {saving ? (
+                      <>
+                        <Loader2 className="size-4 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      "Save"
+                    )}
                   </Button>
                 </div>
               )}

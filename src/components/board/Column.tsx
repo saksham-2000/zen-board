@@ -59,9 +59,19 @@ export function Column({ status, title, tasks, onTaskClick, onAddClick }: Column
         </div>
       </header>
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-2 pb-3 pt-1">
-        {tasks.map((task) => (
-          <TaskCard key={task.id} task={task} onClick={onTaskClick ? () => onTaskClick(task) : undefined} />
-        ))}
+        {tasks.length === 0 ? (
+          <div className="flex min-h-[120px] flex-1 items-center justify-center rounded-lg border border-dashed border-border/60 px-3 py-6">
+            <p className="text-sm text-muted-foreground">No tasks</p>
+          </div>
+        ) : (
+          tasks.map((task) => (
+            <TaskCard
+              key={task.id}
+              task={task}
+              onClick={onTaskClick ? () => onTaskClick(task) : undefined}
+            />
+          ))
+        )}
       </div>
     </div>
   );

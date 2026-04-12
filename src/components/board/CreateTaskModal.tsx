@@ -1,5 +1,6 @@
 "use client";
 
+import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -158,7 +159,14 @@ export function CreateTaskModal({
               Cancel
             </Button>
             <Button type="submit" disabled={!canSubmit}>
-              {submitting ? "Creating..." : "Create task"}
+              {submitting ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                "Create task"
+              )}
             </Button>
           </DialogFooter>
         </form>

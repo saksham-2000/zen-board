@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { toast } from "sonner";
 import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
 import type { Task, TaskPriority, TaskStatus } from "@/types";
@@ -52,6 +53,7 @@ export function useTasks() {
     if (fetchError) {
       setError(fetchError);
       setTasks([]);
+      toast.error("Failed to load tasks", { description: fetchError });
       return;
     }
     setTasks(next);
@@ -67,8 +69,10 @@ export function useTasks() {
   const createTask = useCallback(
     async (data: CreateTaskInput) => {
       if (!user?.id) {
-        setError("Not signed in");
-        return;
+        const msg = "You must be signed in to create tasks.";
+        setError(msg);
+        toast.error(msg);
+        throw new Error(msg);
       }
       const row: {
         user_id: string;
@@ -86,6 +90,7 @@ export function useTasks() {
       const { error: insertError } = await supabase.from("tasks").insert(row);
       if (insertError) {
         setError(insertError.message);
+        toast.error("Failed to create task", { description: insertError.message });
         throw new Error(insertError.message);
       }
       await refetch();
@@ -96,8 +101,10 @@ export function useTasks() {
   const updateTask = useCallback(
     async (id: string, updates: Partial<Task>) => {
       if (!user?.id) {
-        setError("Not signed in");
-        return;
+        const msg = "You must be signed in to update tasks.";
+        setError(msg);
+        toast.error(msg);
+        throw new Error(msg);
       }
       const { id: _i, user_id: _u, created_at: _c, ...columns } = updates;
       void _i;
@@ -113,6 +120,7 @@ export function useTasks() {
 
       if (updateError) {
         setError(updateError.message);
+        toast.error("Failed to update task", { description: updateError.message });
         throw new Error(updateError.message);
       }
       await refetch();
@@ -124,7 +132,9 @@ export function useTasks() {
   const moveTask = useCallback(
     async (taskId: string, newStatus: TaskStatus) => {
       if (!user?.id) {
-        setError("Not signed in");
+        const msg = "You must be signed in to move tasks.";
+        setError(msg);
+        toast.error(msg);
         return;
       }
 
@@ -149,6 +159,7 @@ export function useTasks() {
       if (updateError) {
         setError(updateError.message);
         setTasks(snapshot);
+        toast.error("Failed to move task", { description: updateError.message });
         return;
       }
 
@@ -160,8 +171,10 @@ export function useTasks() {
   const deleteTask = useCallback(
     async (id: string) => {
       if (!user?.id) {
-        setError("Not signed in");
-        return;
+        const msg = "You must be signed in to delete tasks.";
+        setError(msg);
+        toast.error(msg);
+        throw new Error(msg);
       }
       const { error: deleteError } = await supabase
         .from("tasks")
@@ -171,6 +184,7 @@ export function useTasks() {
 
       if (deleteError) {
         setError(deleteError.message);
+        toast.error("Failed to delete task", { description: deleteError.message });
         throw new Error(deleteError.message);
       }
       await refetch();
