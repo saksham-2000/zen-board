@@ -2,7 +2,13 @@
 
 // Manages task CRUD against Supabase. Refetches after mutations for simplicity — optimistic updates added later for drag-and-drop.
 
-import { startTransition, useCallback, useEffect, useState } from "react";
+import {
+  startTransition,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
 import type { Task, TaskPriority, TaskStatus } from "@/types";
@@ -31,6 +37,11 @@ export function useTasks() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const tasksRef = useRef<Task[]>([]);
+
+  useEffect(() => {
+    tasksRef.current = tasks;
+  }, [tasks]);
 
   const refetch = useCallback(async () => {
     if (!user?.id) return;
@@ -109,6 +120,43 @@ export function useTasks() {
     [user, refetch],
   );
 
+  // Optimistic update for drag-and-drop — updates UI instantly, reverts on failure.
+  const moveTask = useCallback(
+    async (taskId: string, newStatus: TaskStatus) => {
+      if (!user?.id) {
+        setError("Not signed in");
+        return;
+      }
+
+      const prev = tasksRef.current;
+      const task = prev.find((t) => t.id === taskId);
+      if (!task || task.status === newStatus) return;
+
+      const snapshot = prev;
+
+      setTasks(
+        prev.map((t) =>
+          t.id === taskId ? { ...t, status: newStatus } : t,
+        ),
+      );
+
+      const { error: updateError } = await supabase
+        .from("tasks")
+        .update({ status: newStatus })
+        .eq("id", taskId)
+        .eq("user_id", user.id);
+
+      if (updateError) {
+        setError(updateError.message);
+        setTasks(snapshot);
+        return;
+      }
+
+      setError(null);
+    },
+    [user],
+  );
+
   const deleteTask = useCallback(
     async (id: string) => {
       if (!user?.id) {
@@ -138,6 +186,7 @@ export function useTasks() {
     error: user?.id ? error : null,
     createTask,
     updateTask,
+    moveTask,
     deleteTask,
   };
 }

@@ -1,3 +1,6 @@
+"use client";
+
+import { useDraggable } from "@dnd-kit/core";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { Task, TaskPriority } from "@/types";
@@ -5,6 +8,8 @@ import type { Task, TaskPriority } from "@/types";
 interface TaskCardProps {
   task: Task;
   onClick?: () => void;
+  /** Renders without draggable behavior (e.g. inside DragOverlay). */
+  isOverlay?: boolean;
 }
 
 const PRIORITY_DOT: Record<TaskPriority, string> = {
@@ -21,15 +26,27 @@ function formatDueDate(value: string): string {
   });
 }
 
-export function TaskCard({ task, onClick }: TaskCardProps) {
-  return (
+export function TaskCard({ task, onClick, isOverlay }: TaskCardProps) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: task.id,
+    disabled: Boolean(isOverlay),
+  });
+
+  const card = (
     <Card
       size="sm"
       className={cn(
-        "gap-0 border border-border/50 bg-card py-0 shadow-sm transition-all duration-200 hover:-translate-y-px hover:shadow-md",
-        onClick ? "cursor-pointer" : "cursor-default",
+        "gap-0 border border-border/50 bg-card py-0 shadow-sm transition-all duration-200",
+        !isOverlay && "hover:-translate-y-px hover:shadow-md",
+        isOverlay && "cursor-grabbing opacity-90 shadow-lg",
+        !isOverlay &&
+          cn(
+            "cursor-grab active:cursor-grabbing",
+            onClick && "hover:cursor-pointer",
+          ),
+        isDragging && "opacity-45",
       )}
-      onClick={onClick}
+      onClick={isOverlay ? undefined : onClick}
     >
       <CardContent className="flex flex-col gap-1.5 px-3 py-2.5">
         <div className="flex items-start gap-2">
@@ -51,5 +68,18 @@ export function TaskCard({ task, onClick }: TaskCardProps) {
         ) : null}
       </CardContent>
     </Card>
+  );
+
+  if (isOverlay) return card;
+
+  return (
+    <div
+      ref={setNodeRef}
+      className="touch-none outline-none"
+      {...listeners}
+      {...attributes}
+    >
+      {card}
+    </div>
   );
 }
