@@ -75,7 +75,7 @@ export function useTasks() {
       const { error: insertError } = await supabase.from("tasks").insert(row);
       if (insertError) {
         setError(insertError.message);
-        return;
+        throw new Error(insertError.message);
       }
       await refetch();
     },

@@ -1,13 +1,21 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Column } from "./Column";
+import { CreateTaskModal } from "./CreateTaskModal";
 import { COLUMNS } from "@/lib/constants";
 import { useTasks } from "@/hooks/use-tasks";
 import type { Task, TaskStatus } from "@/types";
 
 export function Board() {
-  const { tasks, loading, error } = useTasks();
+  const { tasks, loading, error, createTask } = useTasks();
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createDefaultStatus, setCreateDefaultStatus] = useState<TaskStatus>("todo");
+
+  function openCreateModal(status: TaskStatus) {
+    setCreateDefaultStatus(status);
+    setCreateOpen(true);
+  }
 
   const byStatus = useMemo(() => {
     const map = new Map<TaskStatus, Task[]>();
@@ -45,10 +53,25 @@ export function Board() {
               status={col.id}
               title={col.label}
               tasks={byStatus.get(col.id) ?? []}
+              onAddClick={() => openCreateModal(col.id)}
             />
           ))}
         </div>
       </div>
+      <CreateTaskModal
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        defaultStatus={createDefaultStatus}
+        onSubmit={async (data) => {
+          await createTask({
+            title: data.title,
+            description: data.description,
+            priority: data.priority,
+            due_date: data.due_date,
+            status: data.status,
+          });
+        }}
+      />
     </div>
   );
 }
