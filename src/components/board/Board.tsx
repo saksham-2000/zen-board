@@ -20,7 +20,7 @@ import {
 } from "react";
 import { Column } from "./Column";
 import { CreateTaskModal } from "./CreateTaskModal";
-import { LabelFilterBar } from "./LabelFilterBar";
+import { FilterBar, type BoardPriorityFilter } from "./FilterBar";
 import { TaskCard } from "./TaskCard";
 import { TaskDetailPanel } from "./TaskDetailPanel";
 import { Button } from "@/components/ui/button";
@@ -79,6 +79,9 @@ export function Board() {
   const [selectedLabelFilterIds, setSelectedLabelFilterIds] = useState<string[]>(
     [],
   );
+  const [searchQuery, setSearchQuery] = useState("");
+  const [priorityFilter, setPriorityFilter] =
+    useState<BoardPriorityFilter>("all");
 
   const panelTask = useMemo(() => {
     if (!selectedTask) return null;
@@ -103,13 +106,19 @@ export function Board() {
   }
 
   const filteredTasks = useMemo(() => {
-    if (selectedLabelFilterIds.length === 0) return tasks;
-    const wanted = new Set(selectedLabelFilterIds);
+    const q = searchQuery.trim().toLowerCase();
     return tasks.filter((task) => {
-      const onTask = task.labels?.map((l) => l.id) ?? [];
-      return onTask.some((id) => wanted.has(id));
+      if (q && !task.title.toLowerCase().includes(q)) return false;
+      if (priorityFilter !== "all" && task.priority !== priorityFilter)
+        return false;
+      if (selectedLabelFilterIds.length > 0) {
+        const wanted = new Set(selectedLabelFilterIds);
+        const onTask = task.labels?.map((l) => l.id) ?? [];
+        if (!onTask.some((id) => wanted.has(id))) return false;
+      }
+      return true;
     });
-  }, [tasks, selectedLabelFilterIds]);
+  }, [tasks, searchQuery, priorityFilter, selectedLabelFilterIds]);
 
   const byStatus = useMemo(() => {
     const map = new Map<TaskStatus, Task[]>();
@@ -129,7 +138,9 @@ export function Board() {
     );
   }, []);
 
-  const clearLabelFilters = useCallback(() => {
+  const clearAllBoardFilters = useCallback(() => {
+    setSearchQuery("");
+    setPriorityFilter("all");
     setSelectedLabelFilterIds([]);
   }, []);
 
@@ -242,11 +253,17 @@ export function Board() {
         onDragCancel={handleDragCancel}
       >
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 md:px-6">
-          <LabelFilterBar
+          <FilterBar
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            priorityFilter={priorityFilter}
+            onPriorityChange={setPriorityFilter}
             labels={boardLabels}
             selectedLabelIds={selectedLabelFilterIds}
             onToggleLabel={toggleLabelFilter}
-            onClearFilters={clearLabelFilters}
+            onClearAll={clearAllBoardFilters}
+            visibleTaskCount={filteredTasks.length}
+            totalTaskCount={tasks.length}
           />
           <div className="min-h-0 flex-1 overflow-x-auto">
             <div className="flex h-full min-h-0 gap-6 pb-4">
