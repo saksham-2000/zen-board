@@ -41,13 +41,12 @@ interface TaskRowFromDb {
   due_date: string | null;
   user_id: string;
   created_at: string;
-  board_position: number | null;
   task_labels: TaskLabelJoinRow[] | null;
   task_assignees: TaskAssigneeJoinRow[] | null;
 }
 
 function mapTaskRow(row: TaskRowFromDb): Task {
-  const { task_labels, task_assignees, board_position, ...rest } = row;
+  const { task_labels, task_assignees, ...rest } = row;
   const labels = (task_labels ?? [])
     .map((tl) => tl.labels)
     .filter((l): l is Label => l != null);
@@ -55,10 +54,7 @@ function mapTaskRow(row: TaskRowFromDb): Task {
     .map((ta) => ta.team_members)
     .filter((m): m is TeamMember => m != null);
 
-  let task: Task = {
-    ...rest,
-    board_position: board_position ?? 0,
-  };
+  let task: Task = { ...rest };
   if (labels.length > 0) task = { ...task, labels };
   if (assignees.length > 0) task = { ...task, assignees };
   return task;
@@ -71,7 +67,6 @@ async function fetchTasks(userId: string): Promise<{ tasks: Task[]; error: strin
       "*, task_labels(label_id, labels(*)), task_assignees(member_id, team_members(*))",
     )
     .eq("user_id", userId)
-    .order("board_position", { ascending: true })
     .order("created_at", { ascending: true });
 
   if (error) return { tasks: [], error: error.message };
@@ -129,30 +124,18 @@ export function useTasks() {
         toast.error(msg);
         throw new Error(msg);
       }
-      const status = data.status ?? "todo";
-      const siblings = tasksRef.current.filter((t) => t.status === status);
-      const maxPos = siblings.reduce(
-        (m, t) => Math.max(m, t.board_position ?? 0),
-        -1,
-      );
-
       const row: {
         user_id: string;
         title: string;
-        board_position: number;
         description?: string;
         priority?: TaskPriority;
         due_date?: string | null;
         status?: TaskStatus;
-      } = {
-        user_id: user.id,
-        title: data.title,
-        board_position: maxPos + 1,
-        status,
-      };
+      } = { user_id: user.id, title: data.title };
       if (data.description !== undefined) row.description = data.description;
       if (data.priority !== undefined) row.priority = data.priority;
       if (data.due_date !== undefined) row.due_date = data.due_date;
+      if (data.status !== undefined) row.status = data.status;
 
       const { data: inserted, error: insertError } = await supabase
         .from("tasks")
@@ -197,26 +180,9 @@ export function useTasks() {
       void _assignees;
       if (Object.keys(columns).length === 0) return;
 
-      const existing = tasksRef.current.find((t) => t.id === id);
-      let columnsToSend: Record<string, unknown> = { ...columns };
-      if (
-        existing &&
-        columns.status !== undefined &&
-        columns.status !== existing.status
-      ) {
-        const siblings = tasksRef.current.filter(
-          (t) => t.status === columns.status && t.id !== id,
-        );
-        const maxPos = siblings.reduce(
-          (m, t) => Math.max(m, t.board_position ?? 0),
-          -1,
-        );
-        columnsToSend = { ...columnsToSend, board_position: maxPos + 1 };
-      }
-
       const { error: updateError } = await supabase
         .from("tasks")
-        .update(columnsToSend)
+        .update(columns)
         .eq("id", id)
         .eq("user_id", user.id);
 
@@ -230,9 +196,8 @@ export function useTasks() {
     [user, refetch],
   );
 
-  /** Applies a full board order (status + `board_position`) from drag-and-drop. */
-  const commitBoardOrder = useCallback(
-    async (nextTasks: Task[]) => {
+  const moveTask = useCallback(
+    async (taskId: string, newStatus: TaskStatus) => {
       if (!user?.id) {
         const msg = "You must be signed in to move tasks.";
         setError(msg);
@@ -241,35 +206,26 @@ export function useTasks() {
       }
 
       const prev = tasksRef.current;
-      const changed = nextTasks.filter((t) => {
-        const o = prev.find((p) => p.id === t.id);
-        return (
-          !o ||
-          o.status !== t.status ||
-          (o.board_position ?? 0) !== (t.board_position ?? 0)
-        );
-      });
-      if (changed.length === 0) return;
+      const task = prev.find((t) => t.id === taskId);
+      if (!task || task.status === newStatus) return;
 
-      setTasks(nextTasks);
+      const snapshot = prev;
 
-      const results = await Promise.all(
-        changed.map((t) =>
-          supabase
-            .from("tasks")
-            .update({
-              status: t.status,
-              board_position: t.board_position ?? 0,
-            })
-            .eq("id", t.id)
-            .eq("user_id", user.id),
+      setTasks(
+        prev.map((t) =>
+          t.id === taskId ? { ...t, status: newStatus } : t,
         ),
       );
 
-      const updateError = results.find((r) => r.error)?.error;
+      const { error: updateError } = await supabase
+        .from("tasks")
+        .update({ status: newStatus })
+        .eq("id", taskId)
+        .eq("user_id", user.id);
+
       if (updateError) {
         setError(updateError.message);
-        setTasks(prev);
+        setTasks(snapshot);
         toast.error("Failed to move task", { description: updateError.message });
         return;
       }
@@ -312,7 +268,7 @@ export function useTasks() {
     refetch,
     createTask,
     updateTask,
-    commitBoardOrder,
+    moveTask,
     deleteTask,
   };
 }

@@ -39,8 +39,6 @@ export interface Task {
   due_date: string | null;
   user_id: string;
   created_at: string;
-  /** Per-column order (0 = top). Persisted in Supabase `tasks.board_position`. */
-  board_position?: number;
   labels?: Label[];
   assignees?: TeamMember[];
 }

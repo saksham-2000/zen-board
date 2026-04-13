@@ -1,14 +1,12 @@
 "use client";
 
 import {
-  closestCorners,
+  closestCenter,
   DndContext,
   DragOverlay,
   PointerSensor,
-  pointerWithin,
   useSensor,
   useSensors,
-  type CollisionDetection,
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
@@ -16,7 +14,6 @@ import {
   startTransition,
   useCallback,
   useMemo,
-  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -36,20 +33,22 @@ import { useTaskAssignees } from "@/hooks/use-task-assignees";
 import { useTeamMembers } from "@/hooks/use-team-members";
 import { useWorkspaceDefaults } from "@/hooks/use-workspace-defaults";
 import { COLUMNS } from "@/lib/constants";
-import {
-  compareTasksInColumn,
-  computeTasksAfterDrag,
-  isBoardColumnId,
-} from "@/lib/task-board-order";
 import { useTasks } from "@/hooks/use-tasks";
-import type { Task, TaskStatus } from "@/types";
+import type { Task, TaskPriority, TaskStatus } from "@/types";
 
-/** Prefer the pointer’s column/card so leftward (demotion) drops match intent; fall back to corners. */
-const boardCollisionDetection: CollisionDetection = (args) => {
-  const pointerHits = pointerWithin(args);
-  if (pointerHits.length > 0) return pointerHits;
-  return closestCorners(args);
-};
+const COLUMN_IDS = new Set<TaskStatus>(COLUMNS.map((c) => c.id));
+
+function isColumnId(id: string | number): id is TaskStatus {
+  return COLUMN_IDS.has(id as TaskStatus);
+}
+
+const PRIORITY_RANK: Record<TaskPriority, number> = { high: 0, normal: 1, low: 2 };
+
+function compareTasks(a: Task, b: Task): number {
+  const pr = PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority];
+  if (pr !== 0) return pr;
+  return a.created_at.localeCompare(b.created_at);
+}
 
 function BoardHeader({ tasks }: { tasks: Task[] }) {
   return (
@@ -92,7 +91,7 @@ export function Board() {
     error,
     refetch,
     createTask,
-    commitBoardOrder,
+    moveTask,
     updateTask,
     deleteTask,
   } = useTasks();
@@ -115,9 +114,6 @@ export function Board() {
   const [priorityFilter, setPriorityFilter] =
     useState<BoardPriorityFilter>("all");
   const [assigneeFilterMemberId, setAssigneeFilterMemberId] = useState("");
-
-  const lastClientYRef = useRef(0);
-  const pointerCleanupRef = useRef<(() => void) | null>(null);
 
   const panelTask = useMemo(() => {
     if (!selectedTask) return null;
@@ -173,10 +169,7 @@ export function Board() {
       const list = map.get(task.status);
       if (list) list.push(task);
     }
-    for (const col of COLUMNS) {
-      const list = map.get(col.id);
-      if (list) list.sort(compareTasksInColumn);
-    }
+    for (const col of COLUMNS) map.get(col.id)!.sort(compareTasks);
     return map;
   }, [filteredTasks]);
 
@@ -201,19 +194,6 @@ export function Board() {
 
   const handleDragStart = useCallback(
     (event: DragStartEvent) => {
-      const ae = event.activatorEvent as PointerEvent | MouseEvent | undefined;
-      if (ae && "clientY" in ae && typeof ae.clientY === "number") {
-        lastClientYRef.current = ae.clientY;
-      }
-      const syncPointer = (ev: PointerEvent) => {
-        lastClientYRef.current = ev.clientY;
-      };
-      window.addEventListener("pointermove", syncPointer, { passive: true });
-      pointerCleanupRef.current = () => {
-        window.removeEventListener("pointermove", syncPointer);
-        pointerCleanupRef.current = null;
-      };
-
       const id = String(event.active.id);
       setDragActiveTask(filteredTasks.find((t) => t.id === id) ?? null);
     },
@@ -222,29 +202,21 @@ export function Board() {
 
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
-      pointerCleanupRef.current?.();
       setDragActiveTask(null);
       const { active, over } = event;
       if (!over) return;
-      const activeId = String(active.id);
-      const overId = String(over.id);
-
-      let placeAfterOverTask = false;
-      if (!isBoardColumnId(overId) && over.rect.height > 0) {
-        const midY = over.rect.top + over.rect.height / 2;
-        placeAfterOverTask = lastClientYRef.current > midY;
-      }
-
-      const next = computeTasksAfterDrag(tasks, byStatus, activeId, overId, {
-        placeAfterOverTask,
-      });
-      if (next) void commitBoardOrder(next);
+      const taskId = String(active.id);
+      const overId = over.id;
+      const targetColumn = isColumnId(overId)
+        ? overId
+        : tasks.find((t) => t.id === String(overId))?.status;
+      if (!targetColumn) return;
+      void moveTask(taskId, targetColumn);
     },
-    [tasks, byStatus, commitBoardOrder],
+    [moveTask, tasks],
   );
 
   const handleDragCancel = useCallback(() => {
-    pointerCleanupRef.current?.();
     setDragActiveTask(null);
   }, []);
 
@@ -379,7 +351,7 @@ export function Board() {
     <BoardChrome>
       <DndContext
         sensors={sensors}
-        collisionDetection={boardCollisionDetection}
+        collisionDetection={closestCenter}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}

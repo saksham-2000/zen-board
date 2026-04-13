@@ -1,7 +1,6 @@
 "use client";
 
-import { useSortable } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
+import { useDraggable } from "@dnd-kit/core";
 import { Calendar } from "lucide-react";
 import { labelAvatarSolidClass, labelPillClass } from "@/lib/label-colors";
 import {
@@ -14,7 +13,7 @@ import type { Task, TaskPriority } from "@/types";
 interface TaskCardProps {
   task: Task;
   onClick?: () => void;
-  /** Renders without sortable behavior (e.g. inside DragOverlay). */
+  /** Renders without draggable behavior (e.g. inside DragOverlay). */
   isOverlay?: boolean;
 }
 
@@ -82,7 +81,12 @@ const DUE_GROUP_CLASS: Record<DueUrgency, string> = {
 const MAX_LABEL_PILLS = 3;
 const MAX_ASSIGNEE_AVATARS = 3;
 
-function TaskCardSurface({ task, onClick, isOverlay }: TaskCardProps) {
+export function TaskCard({ task, onClick, isOverlay }: TaskCardProps) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: task.id,
+    disabled: Boolean(isOverlay),
+  });
+
   const labelList = task.labels ?? [];
   const visibleLabels = labelList.slice(0, MAX_LABEL_PILLS);
   const labelOverflow = labelList.length - visibleLabels.length;
@@ -106,7 +110,7 @@ function TaskCardSurface({ task, onClick, isOverlay }: TaskCardProps) {
           "hover:-translate-y-px hover:border-border hover:shadow-md",
         isOverlay && "cursor-grabbing opacity-95 shadow-lg",
         !isOverlay && "cursor-pointer",
-
+        isDragging && "opacity-45",
       )}
       onClick={isOverlay ? undefined : onClick}
     >
@@ -193,41 +197,16 @@ function TaskCardSurface({ task, onClick, isOverlay }: TaskCardProps) {
     </div>
   );
 
-  return cardInner;
-}
-
-export function TaskCard(props: TaskCardProps) {
-  if (props.isOverlay) {
-    return <TaskCardSurface {...props} />;
-  }
-  return <SortableTaskCard {...props} />;
-}
-
-export function SortableTaskCard({ task, onClick }: TaskCardProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: task.id });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    ...(isDragging ? { opacity: 0 } : {}),
-  };
+  if (isOverlay) return cardInner;
 
   return (
     <div
       ref={setNodeRef}
-      style={style}
       className="touch-none outline-none"
       {...listeners}
       {...attributes}
     >
-      <TaskCardSurface task={task} onClick={onClick} />
+      {cardInner}
     </div>
   );
 }
