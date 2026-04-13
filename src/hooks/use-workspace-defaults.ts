@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import type { LabelsStore } from "@/hooks/use-labels";
 import type { TeamMembersStore } from "@/hooks/use-team-members";
+import { randomLabelColor } from "@/lib/label-colors";
 
 const SEEDED_KEY = "zen-board:workspace-seeded";
 
@@ -50,8 +51,8 @@ export function useWorkspaceDefaults(
           await teamStore.createMember("You", "blue", { skipRefetch: true });
         }
         if (needLabels) {
-          await labelsStore.createLabel("Work", "blue", { skipRefetch: true });
-          await labelsStore.createLabel("Personal", "pink", {
+          await labelsStore.createLabel("Work", randomLabelColor(), { skipRefetch: true });
+          await labelsStore.createLabel("Personal", randomLabelColor(), {
             skipRefetch: true,
           });
         }
