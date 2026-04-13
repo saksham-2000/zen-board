@@ -2,7 +2,7 @@
 
 > Less chaos. More zen. Get it done
 
-A minimal kanban board for personal task management. Drag tasks between columns, assign team members, tag with labels, and filter by priority. All in a clean, responsive UI backed by Supabase.
+An intentionally minimal kanban board for personal task management. Drag tasks between columns, assign team members, tag with labels, and filter by priority. All in a clean, responsive UI backed by Supabase.
 
 **Live:** [zenboard-saksham.vercel.app](https://zenboard-saksham.vercel.app/)
 
