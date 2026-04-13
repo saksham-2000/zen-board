@@ -3,6 +3,14 @@
 import { UsersIcon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { TeamMembersStore } from "@/hooks/use-team-members";
@@ -29,6 +37,8 @@ export function TeamMemberManager({
   const [name, setName] = useState("");
   const [adding, setAdding] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [memberPendingDelete, setMemberPendingDelete] =
+    useState<TeamMember | null>(null);
   const deleteInFlightRef = useRef(false);
 
   useEffect(() => {
@@ -47,21 +57,22 @@ export function TeamMemberManager({
     }
   }, [name, adding, createMember]);
 
-  const handleDelete = useCallback(
-    async (member: TeamMember) => {
-      if (deleteInFlightRef.current) return;
-      deleteInFlightRef.current = true;
-      setDeletingId(member.id);
-      try {
-        await deleteMember(member.id);
-        await onAfterMemberDelete?.();
-      } finally {
-        deleteInFlightRef.current = false;
-        setDeletingId(null);
-      }
-    },
-    [deleteMember, onAfterMemberDelete],
-  );
+  const confirmDeleteOpen = memberPendingDelete !== null;
+
+  const handleConfirmDelete = useCallback(async () => {
+    if (!memberPendingDelete || deleteInFlightRef.current) return;
+    deleteInFlightRef.current = true;
+    const id = memberPendingDelete.id;
+    setDeletingId(id);
+    try {
+      await deleteMember(id);
+      await onAfterMemberDelete?.();
+      setMemberPendingDelete(null);
+    } finally {
+      deleteInFlightRef.current = false;
+      setDeletingId(null);
+    }
+  }, [memberPendingDelete, deleteMember, onAfterMemberDelete]);
 
   return (
     <div className="relative inline-block">
@@ -126,7 +137,7 @@ export function TeamMemberManager({
                       className="size-7 shrink-0 text-muted-foreground hover:text-destructive"
                       disabled={deletingId === member.id}
                       aria-label={`Remove ${member.name}`}
-                      onClick={() => void handleDelete(member)}
+                      onClick={() => setMemberPendingDelete(member)}
                     >
                       <XIcon className="size-3.5" />
                     </Button>
@@ -165,6 +176,51 @@ export function TeamMemberManager({
           </div>
         </>
       ) : null}
+
+      <Dialog
+        open={confirmDeleteOpen}
+        onOpenChange={(next) => {
+          if (!next) setMemberPendingDelete(null);
+        }}
+      >
+        <DialogContent
+          overlayClassName="z-[200]"
+          className="z-[200] md:max-w-md"
+          showCloseButton={!deletingId}
+          onPointerDownOutside={(e) => {
+            if (deletingId) e.preventDefault();
+          }}
+          onEscapeKeyDown={(e) => {
+            if (deletingId) e.preventDefault();
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>Remove this member?</DialogTitle>
+            <DialogDescription>
+              &quot;{memberPendingDelete?.name}&quot; will be unassigned from
+              every task. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={Boolean(deletingId)}
+              onClick={() => setMemberPendingDelete(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={Boolean(deletingId)}
+              onClick={() => void handleConfirmDelete()}
+            >
+              {deletingId ? "Removing…" : "Remove member"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
