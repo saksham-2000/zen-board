@@ -1,76 +1,55 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import type { LabelsStore } from "@/hooks/use-labels";
 import type { TeamMembersStore } from "@/hooks/use-team-members";
 import { randomLabelColor } from "@/lib/label-colors";
 
-const SEEDED_KEY = "zen-board:workspace-seeded";
+const STORAGE_KEY = "zen-board:workspace-seeded";
 
-/**
- * Seeds a default solo member ("You") and labels ("Work", "Personal") when the
- * workspace is empty — once per user per browser (localStorage guard).
- */
+/** Module-level guard — survives React Strict Mode double-mount and re-renders. */
+const seededUsers = new Set<string>();
+
 export function useWorkspaceDefaults(
   userId: string | undefined,
-  labelsStore: Pick<
-    LabelsStore,
-    "labels" | "loading" | "createLabel" | "refetch"
-  >,
-  teamStore: Pick<
-    TeamMembersStore,
-    "members" | "loading" | "createMember" | "refetch"
-  >,
+  labelsStore: Pick<LabelsStore, "labels" | "loading" | "createLabel" | "refetch">,
+  teamStore: Pick<TeamMembersStore, "members" | "loading" | "createMember" | "refetch">,
 ) {
-  const seedingRef = useRef(false);
+  const ready = !!userId && !labelsStore.loading && !teamStore.loading;
+  const labelsEmpty = labelsStore.labels.length === 0;
+  const membersEmpty = teamStore.members.length === 0;
 
   useEffect(() => {
-    if (
-      !userId ||
-      labelsStore.loading ||
-      teamStore.loading ||
-      seedingRef.current
-    ) {
+    if (!ready || !userId) return;
+    if (seededUsers.has(userId)) return;
+    if (localStorage.getItem(`${STORAGE_KEY}:${userId}`)) {
+      seededUsers.add(userId);
+      return;
+    }
+    if (!labelsEmpty && !membersEmpty) {
+      localStorage.setItem(`${STORAGE_KEY}:${userId}`, "1");
+      seededUsers.add(userId);
       return;
     }
 
-    const alreadySeeded = localStorage.getItem(`${SEEDED_KEY}:${userId}`);
-    if (alreadySeeded) return;
+    seededUsers.add(userId);
 
-    const needMember = teamStore.members.length === 0;
-    const needLabels = labelsStore.labels.length === 0;
-    if (!needMember && !needLabels) {
-      localStorage.setItem(`${SEEDED_KEY}:${userId}`, "1");
-      return;
-    }
-
-    seedingRef.current = true;
     void (async () => {
       try {
-        if (needMember) {
+        if (membersEmpty) {
           await teamStore.createMember("You", "blue", { skipRefetch: true });
         }
-        if (needLabels) {
+        if (labelsEmpty) {
           await labelsStore.createLabel("Work", randomLabelColor(), { skipRefetch: true });
-          await labelsStore.createLabel("Personal", randomLabelColor(), {
-            skipRefetch: true,
-          });
+          await labelsStore.createLabel("Personal", randomLabelColor(), { skipRefetch: true });
         }
-        localStorage.setItem(`${SEEDED_KEY}:${userId}`, "1");
+        localStorage.setItem(`${STORAGE_KEY}:${userId}`, "1");
         await Promise.all([labelsStore.refetch(), teamStore.refetch()]);
-      } finally {
-        seedingRef.current = false;
+      } catch {
+        seededUsers.delete(userId);
       }
     })();
-  }, [
-    userId,
-    labelsStore.loading,
-    teamStore.loading,
-    labelsStore.labels.length,
-    teamStore.members.length,
-    labelsStore.createLabel,
-    labelsStore.refetch,
-    teamStore.createMember,
-    teamStore.refetch,
-  ]);
+    // Only re-run when data finishes loading or userId changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, userId, labelsEmpty, membersEmpty]);
 }
