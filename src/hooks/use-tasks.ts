@@ -41,12 +41,13 @@ interface TaskRowFromDb {
   due_date: string | null;
   user_id: string;
   created_at: string;
+  board_position: number | null;
   task_labels: TaskLabelJoinRow[] | null;
   task_assignees: TaskAssigneeJoinRow[] | null;
 }
 
 function mapTaskRow(row: TaskRowFromDb): Task {
-  const { task_labels, task_assignees, ...rest } = row;
+  const { task_labels, task_assignees, board_position, ...rest } = row;
   const labels = (task_labels ?? [])
     .map((tl) => tl.labels)
     .filter((l): l is Label => l != null);
@@ -54,7 +55,10 @@ function mapTaskRow(row: TaskRowFromDb): Task {
     .map((ta) => ta.team_members)
     .filter((m): m is TeamMember => m != null);
 
-  let task: Task = { ...rest };
+  let task: Task = {
+    ...rest,
+    board_position: board_position ?? 0,
+  };
   if (labels.length > 0) task = { ...task, labels };
   if (assignees.length > 0) task = { ...task, assignees };
   return task;
@@ -67,6 +71,7 @@ async function fetchTasks(userId: string): Promise<{ tasks: Task[]; error: strin
       "*, task_labels(label_id, labels(*)), task_assignees(member_id, team_members(*))",
     )
     .eq("user_id", userId)
+    .order("board_position", { ascending: true })
     .order("created_at", { ascending: true });
 
   if (error) return { tasks: [], error: error.message };
@@ -85,20 +90,26 @@ export function useTasks() {
     tasksRef.current = tasks;
   }, [tasks]);
 
-  const refetch = useCallback(async () => {
-    if (!user?.id) return;
-    setLoading(true);
-    setError(null);
-    const { tasks: next, error: fetchError } = await fetchTasks(user.id);
-    setLoading(false);
-    if (fetchError) {
-      setError(fetchError);
-      setTasks([]);
-      toast.error("Failed to load tasks", { description: fetchError });
-      return;
-    }
-    setTasks(next);
-  }, [user]);
+  const refetch = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (!user?.id) return;
+      const silent = options?.silent ?? false;
+      if (!silent) {
+        setLoading(true);
+        setError(null);
+      }
+      const { tasks: next, error: fetchError } = await fetchTasks(user.id);
+      if (!silent) setLoading(false);
+      if (fetchError) {
+        setError(fetchError);
+        setTasks([]);
+        toast.error("Failed to load tasks", { description: fetchError });
+        return;
+      }
+      setTasks(next);
+    },
+    [user],
+  );
 
   useEffect(() => {
     if (authLoading || !user?.id) return;
@@ -108,25 +119,40 @@ export function useTasks() {
   }, [user, authLoading, refetch]);
 
   const createTask = useCallback(
-    async (data: CreateTaskInput): Promise<string> => {
+    async (
+      data: CreateTaskInput,
+      options?: { skipRefetch?: boolean },
+    ): Promise<string> => {
       if (!user?.id) {
         const msg = "You must be signed in to create tasks.";
         setError(msg);
         toast.error(msg);
         throw new Error(msg);
       }
+      const status = data.status ?? "todo";
+      const siblings = tasksRef.current.filter((t) => t.status === status);
+      const maxPos = siblings.reduce(
+        (m, t) => Math.max(m, t.board_position ?? 0),
+        -1,
+      );
+
       const row: {
         user_id: string;
         title: string;
+        board_position: number;
         description?: string;
         priority?: TaskPriority;
         due_date?: string | null;
         status?: TaskStatus;
-      } = { user_id: user.id, title: data.title };
+      } = {
+        user_id: user.id,
+        title: data.title,
+        board_position: maxPos + 1,
+        status,
+      };
       if (data.description !== undefined) row.description = data.description;
       if (data.priority !== undefined) row.priority = data.priority;
       if (data.due_date !== undefined) row.due_date = data.due_date;
-      if (data.status !== undefined) row.status = data.status;
 
       const { data: inserted, error: insertError } = await supabase
         .from("tasks")
@@ -138,14 +164,18 @@ export function useTasks() {
         toast.error("Failed to create task", { description: insertError.message });
         throw new Error(insertError.message);
       }
-      await refetch();
+      if (!options?.skipRefetch) await refetch();
       return inserted.id as string;
     },
     [user, refetch],
   );
 
   const updateTask = useCallback(
-    async (id: string, updates: Partial<Task>) => {
+    async (
+      id: string,
+      updates: Partial<Task>,
+      options?: { skipRefetch?: boolean },
+    ) => {
       if (!user?.id) {
         const msg = "You must be signed in to update tasks.";
         setError(msg);
@@ -167,9 +197,26 @@ export function useTasks() {
       void _assignees;
       if (Object.keys(columns).length === 0) return;
 
+      const existing = tasksRef.current.find((t) => t.id === id);
+      let columnsToSend: Record<string, unknown> = { ...columns };
+      if (
+        existing &&
+        columns.status !== undefined &&
+        columns.status !== existing.status
+      ) {
+        const siblings = tasksRef.current.filter(
+          (t) => t.status === columns.status && t.id !== id,
+        );
+        const maxPos = siblings.reduce(
+          (m, t) => Math.max(m, t.board_position ?? 0),
+          -1,
+        );
+        columnsToSend = { ...columnsToSend, board_position: maxPos + 1 };
+      }
+
       const { error: updateError } = await supabase
         .from("tasks")
-        .update(columns)
+        .update(columnsToSend)
         .eq("id", id)
         .eq("user_id", user.id);
 
@@ -178,14 +225,14 @@ export function useTasks() {
         toast.error("Failed to update task", { description: updateError.message });
         throw new Error(updateError.message);
       }
-      await refetch();
+      if (!options?.skipRefetch) await refetch();
     },
     [user, refetch],
   );
 
-  // Optimistic update for drag-and-drop — updates UI instantly, reverts on failure.
-  const moveTask = useCallback(
-    async (taskId: string, newStatus: TaskStatus) => {
+  /** Applies a full board order (status + `board_position`) from drag-and-drop. */
+  const commitBoardOrder = useCallback(
+    async (nextTasks: Task[]) => {
       if (!user?.id) {
         const msg = "You must be signed in to move tasks.";
         setError(msg);
@@ -194,26 +241,35 @@ export function useTasks() {
       }
 
       const prev = tasksRef.current;
-      const task = prev.find((t) => t.id === taskId);
-      if (!task || task.status === newStatus) return;
+      const changed = nextTasks.filter((t) => {
+        const o = prev.find((p) => p.id === t.id);
+        return (
+          !o ||
+          o.status !== t.status ||
+          (o.board_position ?? 0) !== (t.board_position ?? 0)
+        );
+      });
+      if (changed.length === 0) return;
 
-      const snapshot = prev;
+      setTasks(nextTasks);
 
-      setTasks(
-        prev.map((t) =>
-          t.id === taskId ? { ...t, status: newStatus } : t,
+      const results = await Promise.all(
+        changed.map((t) =>
+          supabase
+            .from("tasks")
+            .update({
+              status: t.status,
+              board_position: t.board_position ?? 0,
+            })
+            .eq("id", t.id)
+            .eq("user_id", user.id),
         ),
       );
 
-      const { error: updateError } = await supabase
-        .from("tasks")
-        .update({ status: newStatus })
-        .eq("id", taskId)
-        .eq("user_id", user.id);
-
+      const updateError = results.find((r) => r.error)?.error;
       if (updateError) {
         setError(updateError.message);
-        setTasks(snapshot);
+        setTasks(prev);
         toast.error("Failed to move task", { description: updateError.message });
         return;
       }
@@ -256,7 +312,7 @@ export function useTasks() {
     refetch,
     createTask,
     updateTask,
-    moveTask,
+    commitBoardOrder,
     deleteTask,
   };
 }

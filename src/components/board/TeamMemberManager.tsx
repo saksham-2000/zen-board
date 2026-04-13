@@ -6,10 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { TeamMembersStore } from "@/hooks/use-team-members";
-import { LABEL_COLOR_NAMES, labelColorClass } from "@/lib/label-colors";
-import { memberInitials } from "@/lib/team-member-utils";
+import { labelColorClass, randomLabelColor } from "@/lib/label-colors";
+import {
+  memberInitials,
+  teamMemberAccentColor,
+} from "@/lib/team-member-utils";
 import { cn } from "@/lib/utils";
-import type { LabelColor, TeamMember } from "@/types";
+import type { TeamMember } from "@/types";
 
 interface TeamMemberManagerProps {
   teamMembersStore: TeamMembersStore;
@@ -24,16 +27,12 @@ export function TeamMemberManager({
   const { members, loading, createMember, deleteMember } = teamMembersStore;
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
-  const [color, setColor] = useState<LabelColor>("blue");
   const [adding, setAdding] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const deleteInFlightRef = useRef(false);
 
   useEffect(() => {
-    if (!open) {
-      setName("");
-      setColor("blue");
-    }
+    if (!open) setName("");
   }, [open]);
 
   const handleAdd = useCallback(async () => {
@@ -41,12 +40,12 @@ export function TeamMemberManager({
     if (!trimmed || adding) return;
     setAdding(true);
     try {
-      await createMember(trimmed, color);
+      await createMember(trimmed, randomLabelColor());
       setName("");
     } finally {
       setAdding(false);
     }
-  }, [name, color, adding, createMember]);
+  }, [name, adding, createMember]);
 
   const handleDelete = useCallback(
     async (member: TeamMember) => {
@@ -75,7 +74,7 @@ export function TeamMemberManager({
         aria-expanded={open}
       >
         <UsersIcon className="size-3.5" aria-hidden />
-        Team
+        Manage Team
       </Button>
       {open ? (
         <>
@@ -110,7 +109,7 @@ export function TeamMemberManager({
                       <span
                         className={cn(
                           "flex size-8 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold leading-none",
-                          labelColorClass(member.color),
+                          labelColorClass(teamMemberAccentColor(member)),
                         )}
                         aria-hidden
                       >
@@ -152,28 +151,6 @@ export function TeamMemberManager({
                     }
                   }}
                 />
-                <div className="flex flex-wrap gap-1.5" role="group" aria-label="Member color">
-                  {LABEL_COLOR_NAMES.map((c) => (
-                    <button
-                      key={c}
-                      type="button"
-                      title={c}
-                      onClick={() => setColor(c)}
-                      className={cn(
-                        "size-6 rounded-full border-2 transition-transform",
-                        c === "red" && "border-red-600/30 bg-red-500/50",
-                        c === "orange" && "border-orange-600/30 bg-orange-500/50",
-                        c === "amber" && "border-amber-600/30 bg-amber-500/50",
-                        c === "green" && "border-emerald-600/30 bg-emerald-500/50",
-                        c === "blue" && "border-sky-600/30 bg-sky-500/50",
-                        c === "purple" && "border-purple-600/30 bg-purple-500/50",
-                        c === "pink" && "border-pink-600/30 bg-pink-500/50",
-                        color === c &&
-                          "scale-110 ring-2 ring-foreground/25 ring-offset-2 ring-offset-popover",
-                      )}
-                    />
-                  ))}
-                </div>
                 <Button
                   type="button"
                   size="sm"

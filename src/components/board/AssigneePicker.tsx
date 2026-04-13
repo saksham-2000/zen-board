@@ -3,7 +3,10 @@
 import { useCallback, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { labelColorClass } from "@/lib/label-colors";
-import { memberInitials } from "@/lib/team-member-utils";
+import {
+  memberInitials,
+  teamMemberAccentColor,
+} from "@/lib/team-member-utils";
 import { cn } from "@/lib/utils";
 import type { TeamMember } from "@/types";
 
@@ -55,7 +58,7 @@ export function AssigneePicker({
   if (available.length === 0) {
     return (
       <p className="text-xs text-muted-foreground">
-        No team members yet — use Team to add people.
+        No team members yet — use Manage Team in the board header to add people.
       </p>
     );
   }
@@ -78,7 +81,7 @@ export function AssigneePicker({
             disabled={disabled || Boolean(busyId)}
             className={cn(
               "h-auto min-h-0 gap-1.5 rounded-full border px-2 py-1 text-xs font-medium transition-all duration-150",
-              labelColorClass(member.color),
+              labelColorClass(teamMemberAccentColor(member)),
               on && "ring-2 ring-foreground/30 ring-offset-2 ring-offset-background",
               !on && "opacity-80 hover:opacity-100 hover:shadow-sm",
             )}
@@ -87,8 +90,7 @@ export function AssigneePicker({
           >
             <span
               className={cn(
-                "flex size-5 shrink-0 items-center justify-center rounded-full text-[9px] font-semibold leading-none",
-                "border border-foreground/10 bg-background/40",
+                "flex size-5 shrink-0 items-center justify-center rounded-full border border-foreground/15 bg-background/35 text-[9px] font-semibold leading-none text-foreground",
               )}
             >
               {memberInitials(member.name)}

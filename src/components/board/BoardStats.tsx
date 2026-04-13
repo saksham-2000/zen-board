@@ -43,8 +43,16 @@ export function BoardStats({ tasks }: { tasks: Task[] }) {
       <span className="text-border" aria-hidden>
         ·
       </span>
-      <span className={itemClass}>
-        <CheckCircle2 className="size-3.5 shrink-0 opacity-70" aria-hidden />
+      <span
+        className={cn(
+          itemClass,
+          "font-medium text-emerald-700/90 dark:text-emerald-400/90",
+        )}
+      >
+        <CheckCircle2
+          className="size-3.5 shrink-0 text-emerald-600 opacity-90 dark:text-emerald-400/90"
+          aria-hidden
+        />
         <span className="tabular-nums">{completed}</span>
         <span>done</span>
       </span>

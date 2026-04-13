@@ -11,7 +11,11 @@ export interface LabelsStore {
   labels: Label[];
   loading: boolean;
   refetch: () => Promise<void>;
-  createLabel: (name: string, color: string) => Promise<void>;
+  createLabel: (
+    name: string,
+    color: string,
+    options?: { skipRefetch?: boolean },
+  ) => Promise<void>;
   deleteLabel: (id: string) => Promise<void>;
   addLabelToTask: (taskId: string, labelId: string) => Promise<void>;
   removeLabelFromTask: (taskId: string, labelId: string) => Promise<void>;
@@ -56,7 +60,11 @@ export function useLabels() {
   }, [user, authLoading, refetch]);
 
   const createLabel = useCallback(
-    async (name: string, color: string) => {
+    async (
+      name: string,
+      color: string,
+      options?: { skipRefetch?: boolean },
+    ) => {
       if (!user?.id) {
         toast.error("You must be signed in to create labels.");
         throw new Error("Not signed in");
@@ -70,7 +78,7 @@ export function useLabels() {
         toast.error("Failed to create label", { description: error.message });
         throw new Error(error.message);
       }
-      await refetch();
+      if (!options?.skipRefetch) await refetch();
     },
     [user, refetch],
   );

@@ -10,7 +10,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { labelColorClass } from "@/lib/label-colors";
+import { labelColorClass, labelDotClass } from "@/lib/label-colors";
+import { teamMemberAccentColor } from "@/lib/team-member-utils";
 import { cn } from "@/lib/utils";
 import type { Label, TaskPriority, TeamMember } from "@/types";
 
@@ -132,7 +133,16 @@ export function FilterBar({
               <SelectItem value={ASSIGNEE_FILTER_ALL}>All assignees</SelectItem>
               {teamMembers.map((m) => (
                 <SelectItem key={m.id} value={m.id}>
-                  {m.name}
+                  <span className="flex items-center gap-2">
+                    <span
+                      className={cn(
+                        "size-2 shrink-0 rounded-full",
+                        labelDotClass(teamMemberAccentColor(m)),
+                      )}
+                      aria-hidden
+                    />
+                    {m.name}
+                  </span>
                 </SelectItem>
               ))}
             </SelectContent>

@@ -1,7 +1,13 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useState,
+} from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,26 +30,40 @@ import type { LabelsStore } from "@/hooks/use-labels";
 import type { TeamMembersStore } from "@/hooks/use-team-members";
 import { COLUMNS } from "@/lib/constants";
 import { labelColorClass } from "@/lib/label-colors";
-import { memberInitials } from "@/lib/team-member-utils";
+import {
+  memberInitials,
+  teamMemberAccentColor,
+} from "@/lib/team-member-utils";
 import { cn } from "@/lib/utils";
 import type { Task, TaskPriority, TaskStatus } from "@/types";
 import { AssigneePicker } from "./AssigneePicker";
-import { LabelManager } from "./LabelManager";
 import { LabelPicker } from "./LabelPicker";
 
 interface TaskDetailPanelProps {
   task: Task | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onUpdate: (id: string, updates: Partial<Task>) => Promise<void>;
+  onUpdate: (
+    id: string,
+    updates: Partial<Task>,
+    options?: { skipRefetch?: boolean },
+  ) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   /** Refetch tasks after label assignment changes (joined `task.labels`). */
   onTasksRefetch?: () => void | Promise<void>;
   /** Same `useLabels()` instance as the board so new labels appear in the filter bar without refresh. */
   labelsStore: LabelsStore;
   teamMembersStore: TeamMembersStore;
-  assignMember: (taskId: string, memberId: string) => Promise<void>;
-  unassignMember: (taskId: string, memberId: string) => Promise<void>;
+  assignMember: (
+    taskId: string,
+    memberId: string,
+    options?: { skipRefetch?: boolean },
+  ) => Promise<void>;
+  unassignMember: (
+    taskId: string,
+    memberId: string,
+    options?: { skipRefetch?: boolean },
+  ) => Promise<void>;
 }
 
 function formatRelativeTime(iso: string): string {
@@ -101,14 +121,8 @@ export function TaskDetailPanel({
   assignMember,
   unassignMember,
 }: TaskDetailPanelProps) {
-  const {
-    labels: allLabels,
-    loading: labelsLoading,
-    createLabel,
-    deleteLabel,
-    addLabelToTask,
-    removeLabelFromTask,
-  } = labelsStore;
+  const { labels: allLabels, addLabelToTask, removeLabelFromTask } =
+    labelsStore;
   const { members: allTeamMembers } = teamMembersStore;
 
   const [mode, setMode] = useState<"view" | "edit">("view");
@@ -121,6 +135,11 @@ export function TaskDetailPanel({
   const [priority, setPriority] = useState<TaskPriority>("normal");
   const [dueDate, setDueDate] = useState("");
   const [status, setStatus] = useState<TaskStatus>("todo");
+  /** Draft assignees / labels while editing; persisted only on Save. */
+  const [draftLabelIds, setDraftLabelIds] = useState<Set<string>>(new Set());
+  const [draftAssigneeIds, setDraftAssigneeIds] = useState<Set<string>>(
+    new Set(),
+  );
 
   // Re-seed edit fields when switching tasks only; avoid resetting on refetch of the same id.
   useEffect(
@@ -147,6 +166,68 @@ export function TaskDetailPanel({
     [open, task?.id],
   );
 
+  useLayoutEffect(() => {
+    if (!task || mode !== "edit") return;
+    setDraftLabelIds(new Set((task.labels ?? []).map((l) => l.id)));
+    setDraftAssigneeIds(new Set((task.assignees ?? []).map((a) => a.id)));
+    // Intentionally only when switching task or entering edit — not on every task reference churn.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [task?.id, mode]);
+
+  const draftAssignedLabels = useMemo(
+    () => allLabels.filter((l) => draftLabelIds.has(l.id)),
+    [allLabels, draftLabelIds],
+  );
+
+  const draftAssignedMembers = useMemo(
+    () => allTeamMembers.filter((m) => draftAssigneeIds.has(m.id)),
+    [allTeamMembers, draftAssigneeIds],
+  );
+
+  const handleDraftAddLabel = useCallback(
+    async (_taskId: string, labelId: string) => {
+      setDraftLabelIds((prev) => {
+        const next = new Set(prev);
+        next.add(labelId);
+        return next;
+      });
+    },
+    [],
+  );
+
+  const handleDraftRemoveLabel = useCallback(
+    async (_taskId: string, labelId: string) => {
+      setDraftLabelIds((prev) => {
+        const next = new Set(prev);
+        next.delete(labelId);
+        return next;
+      });
+    },
+    [],
+  );
+
+  const handleDraftAssign = useCallback(
+    async (_taskId: string, memberId: string) => {
+      setDraftAssigneeIds((prev) => {
+        const next = new Set(prev);
+        next.add(memberId);
+        return next;
+      });
+    },
+    [],
+  );
+
+  const handleDraftUnassign = useCallback(
+    async (_taskId: string, memberId: string) => {
+      setDraftAssigneeIds((prev) => {
+        const next = new Set(prev);
+        next.delete(memberId);
+        return next;
+      });
+    },
+    [],
+  );
+
   function discardEdit() {
     if (!task) return;
     setTitle(task.title);
@@ -154,20 +235,46 @@ export function TaskDetailPanel({
     setPriority(task.priority);
     setDueDate(task.due_date ? task.due_date.slice(0, 10) : "");
     setStatus(task.status);
+    setDraftLabelIds(new Set((task.labels ?? []).map((l) => l.id)));
+    setDraftAssigneeIds(new Set((task.assignees ?? []).map((a) => a.id)));
     setMode("view");
   }
 
   async function handleSave() {
     if (!task || !title.trim()) return;
+    const taskId = task.id;
+    const serverLabelIds = new Set((task.labels ?? []).map((l) => l.id));
+    const serverAssigneeIds = new Set(
+      (task.assignees ?? []).map((a) => a.id),
+    );
     setSaving(true);
     try {
-      await onUpdate(task.id, {
-        title: title.trim(),
-        description: description.trim() ? description.trim() : null,
-        priority,
-        due_date: dueDate || null,
-        status,
-      });
+      await onUpdate(
+        taskId,
+        {
+          title: title.trim(),
+          description: description.trim() ? description.trim() : null,
+          priority,
+          due_date: dueDate || null,
+          status,
+        },
+        { skipRefetch: true },
+      );
+      for (const id of draftLabelIds) {
+        if (!serverLabelIds.has(id)) await addLabelToTask(taskId, id);
+      }
+      for (const id of serverLabelIds) {
+        if (!draftLabelIds.has(id)) await removeLabelFromTask(taskId, id);
+      }
+      for (const id of draftAssigneeIds) {
+        if (!serverAssigneeIds.has(id))
+          await assignMember(taskId, id, { skipRefetch: true });
+      }
+      for (const id of serverAssigneeIds) {
+        if (!draftAssigneeIds.has(id))
+          await unassignMember(taskId, id, { skipRefetch: true });
+      }
+      await onTasksRefetch?.();
       setMode("view");
     } catch {
       /* error surfaced via hook / future toast */
@@ -234,18 +341,9 @@ export function TaskDetailPanel({
                     </Badge>
                   </div>
                   <div>
-                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                        Labels
-                      </p>
-                      <LabelManager
-                        labels={allLabels}
-                        loading={labelsLoading}
-                        onCreateLabel={createLabel}
-                        onDeleteLabel={deleteLabel}
-                        onAfterLabelDelete={onTasksRefetch}
-                      />
-                    </div>
+                    <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Labels
+                    </p>
                     {task.labels && task.labels.length > 0 ? (
                       <div className="flex flex-wrap gap-1.5">
                         {task.labels.map((label) => (
@@ -278,7 +376,7 @@ export function TaskDetailPanel({
                             <span
                               className={cn(
                                 "flex size-8 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold leading-none",
-                                labelColorClass(m.color),
+                                labelColorClass(teamMemberAccentColor(m)),
                               )}
                               aria-hidden
                             >
@@ -380,34 +478,27 @@ export function TaskDetailPanel({
                     </Select>
                   </div>
                   <div className="grid gap-2">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="text-sm font-medium">Labels</span>
-                      <LabelManager
-                        labels={allLabels}
-                        loading={labelsLoading}
-                        onCreateLabel={createLabel}
-                        onDeleteLabel={deleteLabel}
-                        onAfterLabelDelete={onTasksRefetch}
-                      />
-                    </div>
+                    <span className="text-sm font-medium">Labels</span>
                     <LabelPicker
                       taskId={task.id}
-                      assigned={task.labels ?? []}
+                      assigned={draftAssignedLabels}
                       available={allLabels}
-                      onAddToTask={addLabelToTask}
-                      onRemoveFromTask={removeLabelFromTask}
-                      onAssignmentsChange={onTasksRefetch}
+                      onAddToTask={handleDraftAddLabel}
+                      onRemoveFromTask={handleDraftRemoveLabel}
                       disabled={saving}
                     />
                   </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Label and assignee changes apply when you save.
+                  </p>
                   <div className="grid gap-2">
                     <span className="text-sm font-medium">Assignees</span>
                     <AssigneePicker
                       taskId={task.id}
-                      assigned={task.assignees ?? []}
+                      assigned={draftAssignedMembers}
                       available={allTeamMembers}
-                      onAssign={assignMember}
-                      onUnassign={unassignMember}
+                      onAssign={handleDraftAssign}
+                      onUnassign={handleDraftUnassign}
                       disabled={saving}
                     />
                   </div>

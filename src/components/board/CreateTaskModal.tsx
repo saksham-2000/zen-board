@@ -20,9 +20,18 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { labelColorClass } from "@/lib/label-colors";
-import { memberInitials } from "@/lib/team-member-utils";
+import {
+  memberInitials,
+  teamMemberAccentColor,
+} from "@/lib/team-member-utils";
 import { cn } from "@/lib/utils";
-import type { TaskPriority, TaskStatus, TeamMember } from "@/types";
+import type { Label, TaskPriority, TaskStatus, TeamMember } from "@/types";
+
+function defaultDueDateOneWeekOut(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 7);
+  return d.toISOString().slice(0, 10);
+}
 
 export interface CreateTaskSubmitData {
   title: string;
@@ -32,6 +41,8 @@ export interface CreateTaskSubmitData {
   status: TaskStatus;
   /** Member ids to link after the task row exists. */
   assigneeIds?: string[];
+  /** Label ids to link after the task row exists. */
+  labelIds?: string[];
 }
 
 interface CreateTaskModalProps {
@@ -40,6 +51,7 @@ interface CreateTaskModalProps {
   defaultStatus?: TaskStatus;
   onSubmit: (data: CreateTaskSubmitData) => Promise<void>;
   teamMembers: TeamMember[];
+  labels: Label[];
 }
 
 export function CreateTaskModal({
@@ -48,6 +60,7 @@ export function CreateTaskModal({
   defaultStatus,
   onSubmit,
   teamMembers,
+  labels,
 }: CreateTaskModalProps) {
   const titleRef = useRef<HTMLInputElement>(null);
   const [title, setTitle] = useState("");
@@ -55,6 +68,9 @@ export function CreateTaskModal({
   const [priority, setPriority] = useState<TaskPriority>("normal");
   const [dueDate, setDueDate] = useState("");
   const [selectedAssigneeIds, setSelectedAssigneeIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [selectedLabelIds, setSelectedLabelIds] = useState<Set<string>>(
     () => new Set(),
   );
   const [submitting, setSubmitting] = useState(false);
@@ -65,6 +81,7 @@ export function CreateTaskModal({
     setPriority("normal");
     setDueDate("");
     setSelectedAssigneeIds(new Set());
+    setSelectedLabelIds(new Set());
   }, []);
 
   const toggleAssignee = useCallback((id: string) => {
@@ -76,9 +93,23 @@ export function CreateTaskModal({
     });
   }, []);
 
+  const toggleLabel = useCallback((id: string) => {
+    setSelectedLabelIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
   useEffect(() => {
     if (!open) clearForm();
   }, [open, clearForm]);
+
+  useEffect(() => {
+    if (!open) return;
+    setDueDate(defaultDueDateOneWeekOut());
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -95,6 +126,8 @@ export function CreateTaskModal({
     try {
       const assigneeIds =
         selectedAssigneeIds.size > 0 ? [...selectedAssigneeIds] : undefined;
+      const labelIds =
+        selectedLabelIds.size > 0 ? [...selectedLabelIds] : undefined;
       await onSubmit({
         title: title.trim(),
         description: description.trim() || undefined,
@@ -102,6 +135,7 @@ export function CreateTaskModal({
         due_date: dueDate || undefined,
         status: defaultStatus ?? "todo",
         assigneeIds,
+        labelIds,
       });
       clearForm();
       onOpenChange(false);
@@ -174,12 +208,48 @@ export function CreateTaskModal({
               onChange={(ev) => setDueDate(ev.target.value)}
             />
           </div>
+          {labels.length > 0 ? (
+            <div className="grid gap-2">
+              <span className="text-sm font-medium">Labels</span>
+              {/* <p className="text-xs text-muted-foreground">
+                Optional — tag this task for filters.
+              </p> */}
+              <div
+                className="flex flex-wrap gap-2"
+                role="group"
+                aria-label="Select labels"
+              >
+                {labels.map((label) => {
+                  const on = selectedLabelIds.has(label.id);
+                  return (
+                    <button
+                      key={label.id}
+                      type="button"
+                      onClick={() => toggleLabel(label.id)}
+                      disabled={submitting}
+                      className={cn(
+                        "inline-flex h-auto min-h-0 rounded-full border px-2.5 py-1 text-xs font-medium transition-opacity",
+                        "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none",
+                        labelColorClass(label.color),
+                        on
+                          ? "ring-2 ring-foreground/30 ring-offset-2 ring-offset-background"
+                          : "opacity-80 hover:opacity-100",
+                      )}
+                      aria-pressed={on}
+                    >
+                      {label.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
           {teamMembers.length > 0 ? (
             <div className="grid gap-2">
               <span className="text-sm font-medium">Assignees</span>
-              <p className="text-xs text-muted-foreground">
+              {/* <p className="text-xs text-muted-foreground">
                 Optional — select who owns this task.
-              </p>
+              </p> */}
               <div
                 className="flex flex-wrap gap-2"
                 role="group"
@@ -196,7 +266,7 @@ export function CreateTaskModal({
                       className={cn(
                         "inline-flex h-auto min-h-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-opacity",
                         "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none",
-                        labelColorClass(member.color),
+                        labelColorClass(teamMemberAccentColor(member)),
                         on
                           ? "ring-2 ring-foreground/30 ring-offset-2 ring-offset-background"
                           : "opacity-80 hover:opacity-100",
@@ -205,8 +275,7 @@ export function CreateTaskModal({
                     >
                       <span
                         className={cn(
-                          "flex size-5 shrink-0 items-center justify-center rounded-full text-[9px] font-semibold leading-none",
-                          "border border-foreground/10 bg-background/40",
+                          "flex size-5 shrink-0 items-center justify-center rounded-full border border-foreground/15 bg-background/35 text-[9px] font-semibold leading-none text-foreground",
                         )}
                       >
                         {memberInitials(member.name)}

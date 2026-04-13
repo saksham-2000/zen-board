@@ -1,6 +1,7 @@
 "use client";
 
 import { useDroppable } from "@dnd-kit/core";
+import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { PlusIcon } from "lucide-react";
 import { TaskCard } from "./TaskCard";
 import { Button } from "@/components/ui/button";
@@ -63,19 +64,24 @@ export function Column({ status, title, tasks, onTaskClick, onAddClick }: Column
           </div>
         </div>
       </header>
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3 pb-3 pt-2">
+      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overflow-x-visible px-3 pb-3 pt-2">
         {tasks.length === 0 ? (
           <div className="flex min-h-28 flex-1 items-center justify-center rounded-lg border border-dashed border-border/70 bg-card/30 px-3 py-6 transition-colors hover:border-border">
             <p className="text-xs text-muted-foreground">No tasks</p>
           </div>
         ) : (
-          tasks.map((task) => (
-            <TaskCard
-              key={task.id}
-              task={task}
-              onClick={onTaskClick ? () => onTaskClick(task) : undefined}
-            />
-          ))
+          <SortableContext
+            items={tasks.map((t) => t.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            {tasks.map((task) => (
+              <TaskCard
+                key={task.id}
+                task={task}
+                onClick={onTaskClick ? () => onTaskClick(task) : undefined}
+              />
+            ))}
+          </SortableContext>
         )}
       </div>
     </div>

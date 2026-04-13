@@ -1,44 +1,55 @@
 "use client";
 
 import {
-  closestCenter,
+  closestCorners,
   DndContext,
   DragOverlay,
   PointerSensor,
+  pointerWithin,
   useSensor,
   useSensors,
+  type CollisionDetection,
   type DragEndEvent,
-  type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
 import {
   startTransition,
   useCallback,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
 import { Column } from "./Column";
 import { CreateTaskModal } from "./CreateTaskModal";
 import { BoardStats } from "./BoardStats";
+import { LabelManager } from "./LabelManager";
 import { TeamMemberManager } from "./TeamMemberManager";
 import { FilterBar, type BoardPriorityFilter } from "./FilterBar";
 import { TaskCard } from "./TaskCard";
 import { TaskDetailPanel } from "./TaskDetailPanel";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAuth } from "@/lib/auth-context";
 import { useLabels } from "@/hooks/use-labels";
 import { useTaskAssignees } from "@/hooks/use-task-assignees";
 import { useTeamMembers } from "@/hooks/use-team-members";
+import { useWorkspaceDefaults } from "@/hooks/use-workspace-defaults";
 import { COLUMNS } from "@/lib/constants";
+import {
+  compareTasksInColumn,
+  computeTasksAfterDrag,
+  isBoardColumnId,
+} from "@/lib/task-board-order";
 import { useTasks } from "@/hooks/use-tasks";
 import type { Task, TaskStatus } from "@/types";
 
-const COLUMN_IDS = new Set<TaskStatus>(COLUMNS.map((c) => c.id));
-
-function isColumnId(id: string | number): id is TaskStatus {
-  return COLUMN_IDS.has(id as TaskStatus);
-}
+/** Prefer the pointer’s column/card so leftward (demotion) drops match intent; fall back to corners. */
+const boardCollisionDetection: CollisionDetection = (args) => {
+  const pointerHits = pointerWithin(args);
+  if (pointerHits.length > 0) return pointerHits;
+  return closestCorners(args);
+};
 
 function BoardHeader({ tasks }: { tasks: Task[] }) {
   return (
@@ -81,13 +92,15 @@ export function Board() {
     error,
     refetch,
     createTask,
-    moveTask,
+    commitBoardOrder,
     updateTask,
     deleteTask,
   } = useTasks();
   const labelsStore = useLabels();
   const { labels: boardLabels } = labelsStore;
   const teamMembersStore = useTeamMembers();
+  const { user } = useAuth();
+  useWorkspaceDefaults(user?.id, labelsStore, teamMembersStore);
   const { assignMember, unassignMember, assignMembersToTask } = useTaskAssignees(
     () => void refetch(),
   );
@@ -102,6 +115,9 @@ export function Board() {
   const [priorityFilter, setPriorityFilter] =
     useState<BoardPriorityFilter>("all");
   const [assigneeFilterMemberId, setAssigneeFilterMemberId] = useState("");
+
+  const lastClientYRef = useRef(0);
+  const pointerCleanupRef = useRef<(() => void) | null>(null);
 
   const panelTask = useMemo(() => {
     if (!selectedTask) return null;
@@ -157,6 +173,10 @@ export function Board() {
       const list = map.get(task.status);
       if (list) list.push(task);
     }
+    for (const col of COLUMNS) {
+      const list = map.get(col.id);
+      if (list) list.sort(compareTasksInColumn);
+    }
     return map;
   }, [filteredTasks]);
 
@@ -181,29 +201,50 @@ export function Board() {
 
   const handleDragStart = useCallback(
     (event: DragStartEvent) => {
+      const ae = event.activatorEvent as PointerEvent | MouseEvent | undefined;
+      if (ae && "clientY" in ae && typeof ae.clientY === "number") {
+        lastClientYRef.current = ae.clientY;
+      }
+      const syncPointer = (ev: PointerEvent) => {
+        lastClientYRef.current = ev.clientY;
+      };
+      window.addEventListener("pointermove", syncPointer, { passive: true });
+      pointerCleanupRef.current = () => {
+        window.removeEventListener("pointermove", syncPointer);
+        pointerCleanupRef.current = null;
+      };
+
       const id = String(event.active.id);
       setDragActiveTask(filteredTasks.find((t) => t.id === id) ?? null);
     },
     [filteredTasks],
   );
 
-  const handleDragOver = useCallback((event: DragOverEvent) => {
-    void event;
-  }, []);
-
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
+      pointerCleanupRef.current?.();
       setDragActiveTask(null);
       const { active, over } = event;
       if (!over) return;
-      const taskId = String(active.id);
-      if (!isColumnId(over.id)) return;
-      void moveTask(taskId, over.id);
+      const activeId = String(active.id);
+      const overId = String(over.id);
+
+      let placeAfterOverTask = false;
+      if (!isBoardColumnId(overId) && over.rect.height > 0) {
+        const midY = over.rect.top + over.rect.height / 2;
+        placeAfterOverTask = lastClientYRef.current > midY;
+      }
+
+      const next = computeTasksAfterDrag(tasks, byStatus, activeId, overId, {
+        placeAfterOverTask,
+      });
+      if (next) void commitBoardOrder(next);
     },
-    [moveTask],
+    [tasks, byStatus, commitBoardOrder],
   );
 
   const handleDragCancel = useCallback(() => {
+    pointerCleanupRef.current?.();
     setDragActiveTask(null);
   }, []);
 
@@ -215,7 +256,7 @@ export function Board() {
         onOpenChange={handleDetailOpenChange}
         onUpdate={updateTask}
         onDelete={deleteTask}
-        onTasksRefetch={() => void refetch()}
+        onTasksRefetch={() => void refetch({ silent: true })}
         labelsStore={labelsStore}
         teamMembersStore={teamMembersStore}
         assignMember={assignMember}
@@ -226,17 +267,29 @@ export function Board() {
         onOpenChange={setCreateOpen}
         defaultStatus={createDefaultStatus}
         teamMembers={teamMembersStore.members}
+        labels={boardLabels}
         onSubmit={async (data) => {
-          const taskId = await createTask({
-            title: data.title,
-            description: data.description,
-            priority: data.priority,
-            due_date: data.due_date,
-            status: data.status,
-          });
-          if (data.assigneeIds?.length) {
-            await assignMembersToTask(taskId, data.assigneeIds);
+          const taskId = await createTask(
+            {
+              title: data.title,
+              description: data.description,
+              priority: data.priority,
+              due_date: data.due_date,
+              status: data.status,
+            },
+            { skipRefetch: true },
+          );
+          if (data.labelIds?.length) {
+            for (const labelId of data.labelIds) {
+              await labelsStore.addLabelToTask(taskId, labelId);
+            }
           }
+          if (data.assigneeIds?.length) {
+            await assignMembersToTask(taskId, data.assigneeIds, {
+              skipRefetch: true,
+            });
+          }
+          void refetch({ silent: true });
         }}
       />
     </>
@@ -268,7 +321,14 @@ export function Board() {
       <BoardChrome>
         <div className="shrink-0 space-y-2 px-4 pt-3 md:px-6">
           <BoardHeader tasks={tasks} />
-          <div className="flex justify-end pb-1">
+          <div className="flex flex-wrap items-center justify-end gap-2 py-2">
+            <LabelManager
+              labels={boardLabels}
+              loading={labelsStore.loading}
+              onCreateLabel={labelsStore.createLabel}
+              onDeleteLabel={labelsStore.deleteLabel}
+              onAfterLabelDelete={refetchTasksAfterMemberChange}
+            />
             <TeamMemberManager
               teamMembersStore={teamMembersStore}
               onAfterMemberDelete={refetchTasksAfterMemberChange}
@@ -288,7 +348,14 @@ export function Board() {
       <BoardChrome>
         <div className="shrink-0 space-y-2 px-4 pt-3 md:px-6">
           <BoardHeader tasks={tasks} />
-          <div className="flex justify-end pb-1">
+          <div className="flex flex-wrap items-center justify-end gap-2 py-2">
+            <LabelManager
+              labels={boardLabels}
+              loading={labelsStore.loading}
+              onCreateLabel={labelsStore.createLabel}
+              onDeleteLabel={labelsStore.deleteLabel}
+              onAfterLabelDelete={refetchTasksAfterMemberChange}
+            />
             <TeamMemberManager
               teamMembersStore={teamMembersStore}
               onAfterMemberDelete={refetchTasksAfterMemberChange}
@@ -312,15 +379,21 @@ export function Board() {
     <BoardChrome>
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCenter}
+        collisionDetection={boardCollisionDetection}
         onDragStart={handleDragStart}
-        onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}
       >
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 pt-3 md:px-6">
           <BoardHeader tasks={tasks} />
-          <div className="flex shrink-0 justify-end py-2">
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 py-2">
+            <LabelManager
+              labels={boardLabels}
+              loading={labelsStore.loading}
+              onCreateLabel={labelsStore.createLabel}
+              onDeleteLabel={labelsStore.deleteLabel}
+              onAfterLabelDelete={refetchTasksAfterMemberChange}
+            />
             <TeamMemberManager
               teamMembersStore={teamMembersStore}
               onAfterMemberDelete={refetchTasksAfterMemberChange}

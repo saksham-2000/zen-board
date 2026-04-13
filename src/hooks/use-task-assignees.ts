@@ -12,7 +12,11 @@ export function useTaskAssignees(refetchTasks: () => void | Promise<void>) {
   const { user } = useAuth();
 
   const assignMember = useCallback(
-    async (taskId: string, memberId: string) => {
+    async (
+      taskId: string,
+      memberId: string,
+      options?: { skipRefetch?: boolean },
+    ) => {
       if (!user?.id) {
         toast.error("You must be signed in.");
         throw new Error("Not signed in");
@@ -25,13 +29,17 @@ export function useTaskAssignees(refetchTasks: () => void | Promise<void>) {
         toast.error("Failed to assign member", { description: error.message });
         throw new Error(error.message);
       }
-      await refetchTasks();
+      if (!options?.skipRefetch) await refetchTasks();
     },
     [user, refetchTasks],
   );
 
   const unassignMember = useCallback(
-    async (taskId: string, memberId: string) => {
+    async (
+      taskId: string,
+      memberId: string,
+      options?: { skipRefetch?: boolean },
+    ) => {
       if (!user?.id) {
         toast.error("You must be signed in.");
         throw new Error("Not signed in");
@@ -45,13 +53,17 @@ export function useTaskAssignees(refetchTasks: () => void | Promise<void>) {
         toast.error("Failed to unassign member", { description: error.message });
         throw new Error(error.message);
       }
-      await refetchTasks();
+      if (!options?.skipRefetch) await refetchTasks();
     },
     [user, refetchTasks],
   );
 
   const assignMembersToTask = useCallback(
-    async (taskId: string, memberIds: string[]) => {
+    async (
+      taskId: string,
+      memberIds: string[],
+      options?: { skipRefetch?: boolean },
+    ) => {
       if (!user?.id) {
         toast.error("You must be signed in.");
         throw new Error("Not signed in");
@@ -63,7 +75,7 @@ export function useTaskAssignees(refetchTasks: () => void | Promise<void>) {
         toast.error("Failed to assign members", { description: error.message });
         throw new Error(error.message);
       }
-      await refetchTasks();
+      if (!options?.skipRefetch) await refetchTasks();
     },
     [user, refetchTasks],
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { XIcon } from "lucide-react";
+import { TagIcon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,9 +13,9 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { LABEL_COLOR_NAMES, labelColorClass } from "@/lib/label-colors";
+import { labelColorClass, randomLabelColor } from "@/lib/label-colors";
 import { cn } from "@/lib/utils";
-import type { Label, LabelColor } from "@/types";
+import type { Label } from "@/types";
 
 interface LabelManagerProps {
   labels: Label[];
@@ -35,7 +35,6 @@ export function LabelManager({
 }: LabelManagerProps) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
-  const [color, setColor] = useState<LabelColor>("blue");
   const [adding, setAdding] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [labelPendingDelete, setLabelPendingDelete] = useState<Label | null>(
@@ -44,10 +43,7 @@ export function LabelManager({
   const deleteInFlightRef = useRef(false);
 
   useEffect(() => {
-    if (!open) {
-      setName("");
-      setColor("blue");
-    }
+    if (!open) setName("");
   }, [open]);
 
   const handleAdd = useCallback(async () => {
@@ -55,12 +51,12 @@ export function LabelManager({
     if (!trimmed || adding) return;
     setAdding(true);
     try {
-      await onCreateLabel(trimmed, color);
+      await onCreateLabel(trimmed, randomLabelColor());
       setName("");
     } finally {
       setAdding(false);
     }
-  }, [name, color, adding, onCreateLabel]);
+  }, [name, adding, onCreateLabel]);
 
   const confirmDeleteOpen = labelPendingDelete !== null;
 
@@ -85,11 +81,12 @@ export function LabelManager({
         type="button"
         variant="outline"
         size="sm"
-        className="h-7 text-xs"
+        className="h-8 gap-1.5 px-2.5 text-xs"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
       >
-        Manage labels
+        <TagIcon className="size-3.5" aria-hidden />
+        Manage Labels
       </Button>
       {open ? (
         <>
@@ -160,27 +157,6 @@ export function LabelManager({
                     }
                   }}
                 />
-                <div className="flex flex-wrap gap-1.5" role="group" aria-label="Label color">
-                  {LABEL_COLOR_NAMES.map((c) => (
-                    <button
-                      key={c}
-                      type="button"
-                      title={c}
-                      onClick={() => setColor(c)}
-                      className={cn(
-                        "size-6 rounded-full border-2 transition-transform",
-                        c === "red" && "border-red-600/30 bg-red-500/50",
-                        c === "orange" && "border-orange-600/30 bg-orange-500/50",
-                        c === "amber" && "border-amber-600/30 bg-amber-500/50",
-                        c === "green" && "border-emerald-600/30 bg-emerald-500/50",
-                        c === "blue" && "border-sky-600/30 bg-sky-500/50",
-                        c === "purple" && "border-purple-600/30 bg-purple-500/50",
-                        c === "pink" && "border-pink-600/30 bg-pink-500/50",
-                        color === c && "scale-110 ring-2 ring-foreground/25 ring-offset-2 ring-offset-popover",
-                      )}
-                    />
-                  ))}
-                </div>
                 <Button
                   type="button"
                   size="sm"
@@ -204,7 +180,7 @@ export function LabelManager({
       >
         <DialogContent
           overlayClassName="z-[200]"
-          className="z-[200] sm:max-w-md"
+          className="z-[200] md:max-w-md"
           showCloseButton={!deletingId}
           onPointerDownOutside={(e) => {
             if (deletingId) e.preventDefault();

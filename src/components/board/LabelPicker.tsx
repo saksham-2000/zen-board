@@ -60,7 +60,7 @@ export function LabelPicker({
   if (available.length === 0) {
     return (
       <p className="text-xs text-muted-foreground">
-        No labels yet — use Manage labels to create one.
+        No labels yet — use Manage Labels in the board header to create one.
       </p>
     );
   }

@@ -11,7 +11,11 @@ export interface TeamMembersStore {
   members: TeamMember[];
   loading: boolean;
   refetch: () => Promise<void>;
-  createMember: (name: string, color: string) => Promise<void>;
+  createMember: (
+    name: string,
+    color: string,
+    options?: { skipRefetch?: boolean },
+  ) => Promise<void>;
   deleteMember: (id: string) => Promise<void>;
 }
 
@@ -54,7 +58,11 @@ export function useTeamMembers(): TeamMembersStore {
   }, [user, authLoading, refetch]);
 
   const createMember = useCallback(
-    async (name: string, color: string) => {
+    async (
+      name: string,
+      color: string,
+      options?: { skipRefetch?: boolean },
+    ) => {
       if (!user?.id) {
         toast.error("You must be signed in to add team members.");
         throw new Error("Not signed in");
@@ -68,7 +76,7 @@ export function useTeamMembers(): TeamMembersStore {
         toast.error("Failed to create team member", { description: error.message });
         throw new Error(error.message);
       }
-      await refetch();
+      if (!options?.skipRefetch) await refetch();
     },
     [user, refetch],
   );
